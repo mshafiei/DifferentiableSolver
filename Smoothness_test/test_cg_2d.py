@@ -13,9 +13,10 @@ from sklearn import preprocessing
 import matplotlib.pylab as plt
 import numpy as np
 import tqdm
+import cvgutils.Image as cvgim
 
 lmbda_init = 0.1
-lmbda_gt = 20.
+lmbda_gt = 4.
 h,w = 100,100
 key = jax.random.PRNGKey(42)
 
@@ -88,8 +89,8 @@ def plot_tangent():
     data = [inpt, im_gt]
     
     count = 20
-    lmbdas = jnp.linspace(0.5,4,count)
     delta = 0.0001
+    lmbdas = jnp.linspace(0.5,4,count)
     valid_loss = jnp.array([outer_objective(lmbdas[i], init_inpt, data) for i in range(count)])
     grad_lmbdas = jnp.array([jax.grad(outer_objective,argnums=0)(lmbdas[i], init_inpt, data) for i in range(count)])
     fd_lmbdas = jnp.array([(outer_objective(lmbdas[i] + delta/2, init_inpt, data) - outer_objective(lmbdas[i] - delta/2, init_inpt, data)) / delta for i in range(count)])
@@ -138,21 +139,64 @@ def hyper_optimization_jaxopt_adam():
 
 def hyper_optimization():
     im_gt = screen_poisson_solver2(init_inpt,lmbda_gt,inpt)
+    count = 20
     lmbda = lmbda_init
     data = [inpt, im_gt]
+    lmbdas = jnp.linspace(lmbda_init,lmbda_gt,count)
+    valid_loss = jnp.array([outer_objective(lmbdas[i], init_inpt, data) for i in range(count)])
+    
+
     lr = .9
     import cv2
     for i in tqdm.trange(2000):
         g = jax.grad(outer_objective,argnums=0)(lmbda, init_inpt, data)
-        lmbda -= lr * g
+        
         if(i%100 == 0):
+            plt.figure(figsize=(12*1.3,3.5*1.3))
             im = screen_poisson_solver2(init_inpt, lmbda, inpt)
             imshow = jnp.concatenate((im.reshape(h,w),im_gt.reshape(h,w)),axis=1)
-            cv2.imwrite('./out/%05i.png' % i,np.array(imshow * 255).astype(np.uint8))
+            imshow = np.array(imshow * 255).astype(np.uint8)
+            # cv2.imwrite('./out/%05i.png' % i,)
+            plt.subplot(1,3,1)
+            plt.imshow((im.reshape(h,w) * 255))
+            plt.title('Prediction')
+            plt.xlabel('Iteration %04i, lambda %05d'%(i,lmbda))
+            plt.subplot(1,3,2)
+            plt.imshow((im_gt.reshape(h,w) * 255))
+            plt.title('Ground truth')
+            plt.xlabel('lambda = ' + '%05d'%lmbda_gt)
+            plt.subplot(1,3,3)
+            plt.plot(lmbdas,valid_loss,'r')
+            loss = outer_objective(lmbda, init_inpt, data)
+            loss_gt = outer_objective(lmbda_gt, init_inpt, data)
+            nrm = jnp.linalg.norm(jnp.array([1,g]))
+            plt.arrow(lmbda,loss,1/nrm,g/nrm,color='b')
+            plt.scatter(lmbda,loss,color='r',marker='o')
+            plt.scatter(lmbda_gt,loss_gt,color='g',marker='o')
+            plt.legend(['Validation loss','Tangent vector','Prediction loss','Ground truth loss'])
+            plt.ylabel('Validation loss')
+            plt.xlabel('Smoothness weight')
+            plt.savefig('./out/plt_%04i.png'%i)
+            plt.close()
+        
+        lmbda -= lr * g
         print('g ',g,' lmbda ', lmbda, ' loss ', outer_objective(lmbda, init_inpt, data))
-
+    import glob
+    imfns = sorted(glob.glob('./out/plt_*.png'))
+    fn = './out/plt.avi'
+    im = cv2.imread(imfns[0])
+    out = cv2.VideoWriter(fn,cv2.VideoWriter_fourcc(*'DIVX'), 5, (im.shape[1],im.shape[0]))
+    for imfn in imfns:
+        im = cv2.imread(imfn)
+        out.write(im)
+    out.release()
+    # cvgim.imageseq2avi(fn,cvgim.loadImageSeq(sorted(imfns)))
+    
 
 # plot_tangent()
 hyper_optimization()
 # hyper_optimization_jaxopt()
 # hyper_optimization_jaxopt_adam()
+import matplotlib.pyplot as plt
+plt.figure((24,10))
+plt.subplot()
