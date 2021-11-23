@@ -23,9 +23,9 @@ from flax import linen as nn
 class deriv(nn.Module):
 
   def setup(self):
-    dx = lambda rng, shape: jnp.array([[0,0,0],[-1,1,0],[0,0,0]]).reshape(3,3,1,1)
-    dy = lambda rng, shape: jnp.array([[0,-1,0],[0,1,0],[0,0,0]]).reshape(3,3,1,1)
-    db = lambda rng, shape: jnp.array([0])
+    dx = lambda rng, shape: jnp.array([[0,0,0],[-1,1,0],[0,0,0]]).reshape(3,3,1,1).astype(np.float32)
+    dy = lambda rng, shape: jnp.array([[0,-1,0],[0,1,0],[0,0,0]]).reshape(3,3,1,1).astype(np.float32)
+    db = lambda rng, shape: jnp.array([0]).astype(np.float32)
 
     self.dx = nn.Conv(1,(3,3),strides=1,kernel_init=dx,bias_init=db,padding='SAME')
     self.dy = nn.Conv(1,(3,3),strides=1,kernel_init=dy,bias_init=db,padding='SAME')
@@ -40,15 +40,16 @@ def stencil_residual(pp_image, hp_nn, data):
   """Objective function."""
   avg_weight =  1.#1. / 425040.# ** 0.5
   r1 =  pp_image - inpt
-  dh = jnp.repeat(jnp.array([[0,0,0],[-1,1,0],[0,0,0]])[:,:,None],3,-1)
-  dv = jnp.repeat(jnp.array([[0,-1,0],[0,1,0],[0,0,0]])[:,:,None],3,-1)
-  dy = pp_image[1:,:,:] - pp_image[:-1,:,:]
-  dx = pp_image[:,1:,:] - pp_image[:,:-1,:]
-  dx1,dy1 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,0:1])
-  dx2,dy2 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,1:2])
-  dx3,dy3 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,2:])
-  dx = jnp.concatenate((dx1,dx2,dx3),axis=-1)
-  dy = jnp.concatenate((dy1,dy2,dy3),axis=-1)
+  flag = False
+  if(flag):
+    dy = pp_image[1:,:,:] - pp_image[:-1,:,:]
+    dx = pp_image[:,1:,:] - pp_image[:,:-1,:]
+  else:
+    dx1,dy1 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,0:1])
+    dx2,dy2 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,1:2])
+    dx3,dy3 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,2:])
+    dx = jnp.concatenate((dx1,dx2,dx3),axis=-1)
+    dy = jnp.concatenate((dy1,dy2,dy3),axis=-1)
 
   out = jnp.concatenate(( r1.reshape(-1), dx.reshape(-1),dy.reshape(-1)),axis=0)
   return avg_weight * out
@@ -134,7 +135,7 @@ def hyper_optimization():
     lr = 0.002
     f = lambda hp_nn:outer_objective(hp_nn, init_inpt, data)
     imshow = screen_poisson_solver(init_inpt, params, data[:-1])
-    imshow2 = jnp.concatenate((imshow,noisy_image))
+    imshow2 = jnp.concatenate((imshow,noisy_image),axis=1)
     logger.addImage(np.array(np.clip(imshow2,0,1)).transpose(2,0,1),'Image')
 
 
