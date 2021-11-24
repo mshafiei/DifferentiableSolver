@@ -10,7 +10,7 @@ import tensorflow_datasets as tfds     # TFDS for MNIST
 import cvgutils.Image as cvgim
 import cvgutils.Viz as cvgviz
 
-logger = cvgviz.logger('./logger','tb','autodiff','unet_overfit_test')
+logger = cvgviz.logger('./logger','tb','autodiff','unet_overfit_test_rgb')
 
 class UNet(nn.Module):
 
@@ -83,7 +83,7 @@ def get_datasets():
 def create_train_state(rng, learning_rate, momentum):
   """Creates initial `TrainState`."""
   cnn = UNet()
-  params = cnn.init(rng, jnp.ones([1, 128, 128, 1]))['params']
+  params = cnn.init(rng, jnp.ones([1, 128, 128, 3]))['params']
   tx = optax.sgd(learning_rate, momentum)
   return train_state.TrainState.create(
       apply_fn=cnn.apply, params=params, tx=tx)
@@ -113,7 +113,7 @@ def train_epoch(state, train_ds, batch_size, epoch, rng):
   for perm in perms:
     batch = {k: v[perm, ...] for k, v in train_ds.items()}
     state, loss, unet_out= train_step(state, batch)
-  imshow = jnp.concatenate((unet_out[0,...,0:1],batch['image'][0,...]),axis=1)
+  imshow = jnp.concatenate((unet_out,batch['image']),axis=2)[0]
   logger.addImage(jnp.clip(imshow,0,1).transpose(2,0,1),'output_input')
   logger.addScalar(loss,'training_loss')
   logger.takeStep()
@@ -125,7 +125,7 @@ def train_epoch(state, train_ds, batch_size, epoch, rng):
 train_ds, test_ds = get_datasets()
 gt_image = cvgim.imread('~/Projects/cvgutils/tests/testimages/wood_texture.jpg')
 gt_image = cvgim.resize(gt_image,scale=0.10)[:128,:256,:] * 2
-train_ds['image'] = jnp.array(gt_image)[None,...,0:1]
+train_ds['image'] = jnp.array(gt_image)[None,...]
 # x, y = jnp.meshgrid(jnp.linspace(0,1,128),jnp.linspace(0,1,128))
 # xy = jnp.stack((x,y),axis=0)
 # xy = jnp.stack((xy,xy,xy),axis=-1)
@@ -134,7 +134,7 @@ train_ds['image'] = jnp.array(gt_image)[None,...,0:1]
 rng = jax.random.PRNGKey(0)
 rng, init_rng = jax.random.split(rng)
 
-learning_rate = 0.1
+learning_rate = 0.01
 momentum = 0.9
 state = create_train_state(init_rng, learning_rate, momentum)
 del init_rng  # Must not be used anymore.
