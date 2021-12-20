@@ -215,11 +215,11 @@ def nonlinear_solver_id(init_image,hp_nn,data):
     gn_opt_err = gn_opt_err.at[count.astype(int)].set(optim_cond(x))
     gn_loss = gn_loss.at[count.astype(int)].set(screen_poisson_objective(x,hp_nn,data))
     count += 1
-    return (x,count, gn_opt_err, gn_loss,linear_opt_err)
+    return (x,count, gn_opt_err, gn_loss,linear_opt_err,linea_opt)
 
   loop_count = 10
-  # x,count, gn_opt_err, gn_loss, linear_opt_err= jax.lax.while_loop(lambda x:optim_cond(x[0]) >= 1e-10,loop_body,(x,0.0,-jnp.ones(200),-jnp.ones(200),-jnp.ones(200))) 
-  x,count, gn_opt_err, gn_loss,linear_opt_err = jax.lax.fori_loop(0,loop_count,lambda i,val:loop_body(val),(x,0.0,-jnp.ones(loop_count),-jnp.ones(loop_count),-jnp.ones(loop_count))) 
+  x,count, gn_opt_err, gn_loss, linear_opt_err,linea_opt= jax.lax.while_loop(lambda x:optim_cond(x[0]) >= 1e-10,loop_body,(x,0.0,-jnp.ones(200),-jnp.ones(200),-jnp.ones(200))) 
+  # x,count, gn_opt_err, gn_loss,linear_opt_err = jax.lax.fori_loop(0,loop_count,lambda i,val:loop_body(val),(x,0.0,-jnp.ones(loop_count),-jnp.ones(loop_count),-jnp.ones(loop_count))) 
   # count, gn_opt_err, gn_loss = 0, [0], [0]
   # d = linear_solver_id(jnp.ones_like(x),x,hp_nn,data)
   # x += d
