@@ -21,20 +21,22 @@ import cvgutils.Image as cvgim
 from flax import linen as nn
 from flax.core.frozen_dict import FrozenDict
 from flax import optim
-class deriv(nn.Module):
+
+from flax import linen as nn
+import jax.numpy as jnp
+import jax
+from flax.training import train_state
+import optax                          # The Optax gradient processing and optimization library
+import numpy as np                    # Ordinary NumPy
+
+class Conv3features(nn.Module):
 
   def setup(self):
-    random_kernel = lambda rng, shape: jax.random.uniform(rng,shape)
-    dx = lambda rng, shape: jnp.array([[0,0,0],[-1,1,0],[0,0,0]]).reshape(3,3,1,1).astype(jnp.float32)
-    dy = lambda rng, shape: jnp.array([[0,-1,0],[0,1,0],[0,0,0]]).reshape(3,3,1,1).astype(jnp.float32)
-    db = lambda rng, shape: jnp.array([0]).astype(jnp.float32)
-
-    self.dx = nn.Conv(1,(3,3),strides=1,kernel_init=random_kernel,use_bias=False,padding='SAME')
-    # self.dy = nn.Conv(1,(3,3),strides=1,kernel_init=random_kernel,bias_init=random_kernel,padding='SAME')
+    self.straight2       = nn.Conv(3,(3,3),strides=(1,1))
     
-
   def __call__(self,x):
-    return self.dx(x)#, self.dy(x)
+    
+    return self.straight2(x)
 
 @jax.jit
 def stencil_residual(pp_image, hp_nn, data):
@@ -47,13 +49,11 @@ def stencil_residual(pp_image, hp_nn, data):
     dy = pp_image[1:,:,:] - pp_image[:-1,:,:]
     dx = pp_image[:,1:,:] - pp_image[:,:-1,:]
   else:
-    dx1 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,0:1])
-    dx2 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,1:2])
-    dx3 = deriv().apply({'params': hp_nn}, pp_image[None,:,:,2:])
-    dx = jnp.concatenate((dx1,dx2,dx3),axis=-1)
+    unet_out = Conv3features().apply({'params': hp_nn}, pp_image)
+    
     # dy = jnp.concatenate((dy1,dy2,dy3),axis=-1)
 
-  out = jnp.concatenate(( r1.reshape(-1), dx.reshape(-1)),axis=0)
+  out = jnp.concatenate(( r1.reshape(-1), unet_out.reshape(-1)),axis=0)
   return avg_weight * out
 
 
@@ -86,10 +86,9 @@ def screen_poisson_solver(init_image,hp_nn, data):
 @jax.jit
 def outer_objective(hp_nn, init_inner, data):
     """Validation loss."""
-    _,_,_,_, gt = data
-    # f = lambda hp_nn: screen_poisson_solver(init_inner, hp_nn, data[:-1])
-    # f_v = ((f(hp_nn) - gt) ** 2).mean()
-    f_v = ((screen_poisson_solver(init_inner, hp_nn, data[:-1]) - gt) ** 2).mean()
+    gt = data[-1]
+    f = lambda hp_nn: screen_poisson_solver(init_inner, hp_nn, data[:-1])
+    f_v = ((f(hp_nn) - gt) ** 2).mean()
     return f_v
 
 def fd(hyper_params, init_inner, data,delta):
@@ -117,8 +116,8 @@ def fd(hyper_params, init_inner, data,delta):
 def hyper_optimization():
     dw = 3
     key4 = jax.random.PRNGKey(45)
-    gt_image = cvgim.imread('~/Projects/cvgutils/tests/testimages/wood_texture.jpg')
-    gt_image = cvgim.resize(gt_image,scale=0.10) * 2
+    gt_image = cvgim.imread('~/Projects/cvgutils/tests/testimages/wood_texture.jpg')[:128,:256,:] *2
+    # gt_image = cvgim.resize(gt_image,scale=0.10) * 2
     noise = jax.random.normal(key4,gt_image.shape) * 0.3
     noisy_image = jnp.clip(gt_image + noise,0,1)
     
@@ -129,14 +128,14 @@ def hyper_optimization():
     im_gt = jnp.array(gt_image)
     h,w = gt_image.shape[0],gt_image.shape[1]
 
-    cnn = deriv()
+    cnn = Conv3features()
     rng = jax.random.PRNGKey(1)
-    testim = jax.random.uniform(rng,[1, h, w, 1])
+    testim = jax.random.uniform(rng,[1, h, w, 3])
     rng, init_rng = jax.random.split(rng)
     params = cnn.init(init_rng, testim)['params']
 
     rng = jax.random.PRNGKey(0)
-    logger = cvgviz.logger('./logger','tb','autodiff','autodiff_nobias')
+    logger = cvgviz.logger('./logger','tb','autodiff','autodiff_convnet_3features')
     data = [dw,h,w,noisy_image, im_gt]
 
 

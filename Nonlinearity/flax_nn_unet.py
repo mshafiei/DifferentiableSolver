@@ -12,11 +12,11 @@ import cvgutils.Viz as cvgviz
 
 logger = cvgviz.logger('./logger','tb','autodiff','unet_overfit_test_rgb')
 
-class UNet(nn.Module):
+class UNet_hard(nn.Module):
 
   def setup(self):
     self.layer1         = nn.Conv(3,(3,3),strides=1)
-    self.group_l1         = nn.normalization.GroupNorm(3)
+    self.group_l1       = nn.normalization.GroupNorm(3)
     self.down1          = nn.Conv(16,(3,3),strides=2)
     self.group1         = nn.normalization.GroupNorm(16)
     self.down2          = nn.Conv(32,(3,3),strides=2)
@@ -59,6 +59,55 @@ class UNet(nn.Module):
     out_straight1 = nn.relu(self.group_straight1(self.straight1(in_straight1)))
     return nn.relu(self.group_straight2(self.straight2(out_straight1)))
 
+class UnitUnet(nn.Module):
+  d : int
+  # self.infeatures = infeatures
+  outfeatures : int
+  ngroup : int
+
+  def setup(self):
+    if(self.d == 0):
+      self.latent = nn.Conv(self.outfeatures,(1,1),strides=1)
+      self.group_latent       = nn.normalization.GroupNorm(self.ngroup)
+    else:
+      self.conv         = nn.Conv(self.outfeatures,(3,3),strides=2)
+      self.group_conv       = nn.normalization.GroupNorm(self.ngroup)
+      self.mid = UnitUnet(self.d-1,self.outfeatures*2,self.ngroup)
+      self.deconv            = nn.ConvTranspose(self.outfeatures,(2,2),strides=(2,2))
+      self.group_deconv      = nn.normalization.GroupNorm(self.ngroup)
+
+  def __call__(self,x):
+    if(self.d == 0):
+      return nn.relu(self.group_latent(self.latent(x)))
+    else:
+      outconv = nn.relu(self.group_conv(self.conv(x)))
+      outmid = self.mid(outconv)
+      outcat = jnp.concatenate((outmid,outconv),axis=-1)
+      return nn.relu(self.group_deconv(self.deconv(outcat)))
+
+class UNet(nn.Module):
+  d : int
+
+  def setup(self):
+    
+    self.layer1          = nn.Conv(3,(3,3),strides=1)
+    self.group_l1        = nn.normalization.GroupNorm(3)
+    self.mid             = UnitUnet(self.d,16,16)
+    self.straight1       = nn.Conv(self.mid.outfeatures+self.layer1.features,(3,3),strides=(1,1))
+    self.group_straight1 = nn.normalization.GroupNorm(self.mid.outfeatures+self.layer1.features)
+    self.straight2       = nn.Conv(3,(3,3),strides=(1,1))
+    self.group_straight2 = nn.normalization.GroupNorm(3)
+
+  def __call__(self,x):
+    
+    l1 = nn.relu(self.group_l1(self.layer1(x)))
+    unet = self.mid(l1)
+    cat = jnp.concatenate((l1,unet),axis=-1)
+    
+    l2 = nn.relu(self.group_straight1(self.straight1(cat)))
+    
+    return self.group_straight2(self.straight2(l2))
+
 
 # class CNN(nn.Module):
 #   """A simple CNN model."""
@@ -82,7 +131,7 @@ def get_datasets():
 
 def create_train_state(rng, learning_rate, momentum):
   """Creates initial `TrainState`."""
-  cnn = UNet()
+  cnn = UNet(2)
   params = cnn.init(rng, jnp.ones([1, 128, 128, 3]))['params']
   tx = optax.sgd(learning_rate, momentum)
   return train_state.TrainState.create(
@@ -92,7 +141,7 @@ def create_train_state(rng, learning_rate, momentum):
 def train_step(state, batch):
   """Train for a single step."""
   def loss_fn(params):
-    unet_out = UNet().apply({'params': params}, batch['image'])
+    unet_out = UNet(2).apply({'params': params}, batch['image'])
     # loss = cross_entropy_loss(logits=logits, labels=batch['label'])
     loss = ((unet_out - batch['image']) ** 2).mean()
     return loss, unet_out
