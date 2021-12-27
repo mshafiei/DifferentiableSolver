@@ -162,7 +162,7 @@ def cg_optimality(d,x,hp_nn,data):
   return cg
 
 @jax.jit
-# @implicit_diff.custom_root(cg_optimality,has_aux=True)
+@implicit_diff.custom_root(cg_optimality,has_aux=True)
 def linear_solver_id(d,x,hp_nn,data):
   _, _, _, inpt,_ = data
   f = lambda pp_image:stencil_residual(pp_image,hp_nn,[*data[:-2],inpt,data[-1]])
@@ -192,7 +192,7 @@ def linear_solver_id(d,x,hp_nn,data):
 #   def b():
 #     pass
 @jax.jit
-@implicit_diff.custom_root(jax.grad(screen_poisson_objective),has_aux=True)
+# @implicit_diff.custom_root(jax.grad(screen_poisson_objective),has_aux=True)
 def nonlinear_solver_id(init_image,hp_nn,data):
   scale = 2**nhierarchies
 
