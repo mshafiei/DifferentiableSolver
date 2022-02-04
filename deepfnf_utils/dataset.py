@@ -6,7 +6,7 @@ import tensorflow as tf
 from six.moves import cPickle as pkl
 from deepfnf_utils.tf_spatial_transformer import transformer
 
-with open('/home/mohammad/Projects/optimizer/baselines/deepFnF/data/exifs.pkl', 'rb') as f:
+with open('./data/exifs.pkl', 'rb') as f:
     COLOR_MAP_DATA = pkl.load(f)
 
 DATA_NAMES = [
