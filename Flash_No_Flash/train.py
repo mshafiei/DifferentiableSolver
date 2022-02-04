@@ -239,11 +239,11 @@ for i in tqdm.trange(int(start_idx), int(opts.max_iter)):
     params, state = update(params,state,batch)
     print('after')
     print('after log')
-    print(state.val)
+    print(state.value)
     if(i % 100 == 0):
         imshow = jnp.concatenate((state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']),axis=2)
         imshow = jnp.clip(imshow,0,1)
         logger.addImage(imshow[0],'imshow')
         logger.save_params(params,batch,i)
-    logger.addScalar(state.val,'loss')
+    logger.addScalar(state.value,'loss')
     logger.takeStep()
