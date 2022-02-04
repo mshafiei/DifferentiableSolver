@@ -29,14 +29,14 @@ class Conv3features(nn.Module):
 
   def setup(self):
     self.straight1       = nn.Conv(12,(3,3),strides=(1,1),use_bias=True)
-    self.straight2       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
-    self.straight3       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
-    self.straight4       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
+    self.straight2       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
+    self.straight3       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
+    self.straight4       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
     self.straight5       = nn.Conv(3,(3,3),strides=(1,1),use_bias=True)
     self.groupnorm1      = nn.GroupNorm(3)
-    self.groupnorm2      = nn.GroupNorm(32)
-    self.groupnorm3      = nn.GroupNorm(32)
-    self.groupnorm4      = nn.GroupNorm(32)
+    self.groupnorm2      = nn.GroupNorm(16)
+    self.groupnorm3      = nn.GroupNorm(16)
+    self.groupnorm4      = nn.GroupNorm(16)
     self.groupnorm5      = nn.GroupNorm(3)
   @nn.compact
   def __call__(self,x):
@@ -193,12 +193,12 @@ def loss(params,batch):
 
     out = predicted - ambient
     loss = (out ** 2).mean()
-    return loss, {'predicted':predicted, 'ambient':ambient, 'flash':flash, 'noisy':noisy,'net_input':batch['net_input']}
+    return loss, {'predicted':jax.lax.stop_gradient(predicted), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
 
 lr = 1e-4
-logger = cvgviz.logger('./logger/Flash_No_Flash','tb','Flash_No_Flash','convnn_v1')
+logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','convnn_v1')
 solver = OptaxSolver(fun=loss, opt=optax.sgd(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
@@ -210,9 +210,12 @@ def update(params,state,batch):
 def update2(params,batch):
     params = jax.tree_multimap(lambda x,y:x-lr*y, params, g(params,batch)[0])
     return params
+print('before first iter')
 batch = dataset.iterator.next()
+print('before preprocess iter')
 batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
 batch = preprocess(batch)
+print('loading params')
 data = logger.load_params()
 start_idx=0
 if(data is not None):
@@ -232,11 +235,13 @@ for i in tqdm.trange(int(start_idx), int(opts.max_iter)):
     # Run training step and print losses
     # testim = sess.run(net_input)
     # params = update2(params,batch)
+    print('before update')
     params, state = update(params,state,batch)
-    val,aux = loss(params,batch)
+    print('after')
+    val = loss(params,batch)
+    print('after log')
     print(val)
     if(i % 100 == 0):
-        out = predict(aux['net_input'],params)
         imshow = jnp.concatenate((aux['predicted'],aux['ambient'],aux['noisy'],aux['flash']),axis=2)
         imshow = jnp.clip(imshow,0,1)
         logger.addImage(imshow[0],'imshow')
