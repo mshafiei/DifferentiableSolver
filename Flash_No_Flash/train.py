@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import optax
 import tensorflow as tf
 import deepfnf_utils.utils as ut
 import deepfnf_utils.tf_utils as tfu
@@ -8,9 +9,10 @@ from flax import linen as nn
 import argparse
 import jax.numpy as jnp
 import tqdm
-from jaxopt import OptaxSolver
-import optax
 from jax.config import config
+from jaxopt import OptaxSolver
+import cvgutils.Viz as cvgviz
+import cvgutils.Image as cvgim
 config.update("jax_debug_nans", True)
 # tf.compat.v1.disable_eager_execution()
 # config = tf.compat.v1.ConfigProto()
@@ -75,8 +77,8 @@ parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
 parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 opts = parser.parse_args()
 
-TLIST = '/home/mohammad/Projects/optimizer/DifferentiableSolver/data/train.txt'
-VPATH = '/home/mohammad/Projects/optimizer/DifferentiableSolver/data/valset/'
+TLIST = 'data/train.txt'
+VPATH = 'data/valset/'
 
 BSZ = opts.batch_size
 IMSZ = opts.image_size
@@ -165,8 +167,7 @@ tf.debugging.set_log_device_placement(True)
 dataset.swap_train()
 #########################################################################
 # Main Training loop
-import cvgutils.Viz as cvgviz
-import cvgutils.Image as cvgim
+
 
 @jax.jit
 def predict(im,params):
@@ -197,10 +198,10 @@ def loss(params,batch):
 
 
 lr = 1e-4
-logger = cvgviz.logger('./logger/Flash_No_Flash','tb','Flash_No_Flash','convnn')
-# solver = OptaxSolver(fun=loss, opt=optax.sgd(lr),has_aux=True)
-# state = solver.init_state(params)
-g = jax.grad(loss,has_aux=True)
+logger = cvgviz.logger('./logger/Flash_No_Flash','tb','Flash_No_Flash','convnn_v1')
+solver = OptaxSolver(fun=loss, opt=optax.sgd(lr),has_aux=True)
+state = solver.init_state(params)
+# g = jax.grad(loss,has_aux=True)
 @jax.jit
 def update(params,state,batch):    
     params, state = solver.update(params, state,batch=batch)
@@ -209,36 +210,36 @@ def update(params,state,batch):
 def update2(params,batch):
     params = jax.tree_multimap(lambda x,y:x-lr*y, params, g(params,batch)[0])
     return params
-# batch = dataset.iterator.next()
-# batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-# batch = preprocess(batch)
-# data = logger.load_params()
-# start_idx=0
-# if(data is not None):
-#     # state = data['state']
-#     batch = data['state']
-#     params = data['params']
-#     start_idx = data['idx']
+batch = dataset.iterator.next()
+batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
+batch = preprocess(batch)
+data = logger.load_params()
 start_idx=0
-batch = {'alpha':jnp.ones([1,1,1,1]),
-'ambient':jnp.ones([1,448,448,3]),
-'noisy':jnp.ones([1,448,448,3]),
-'flash':jnp.ones([1,448,448,3]),
-'net_input':jnp.ones([1,448,448,12]),
-'adapt_matrix':jnp.ones([1,3,3]),
-'color_matrix':jnp.ones([1,3,3])}
+if(data is not None):
+    # state = data['state']
+    batch = data['state']
+    params = data['params']
+    start_idx = data['idx']
+# start_idx=0
+# batch = {'alpha':jnp.ones([1,1,1,1]),
+# 'ambient':jnp.ones([1,448,448,3]),
+# 'noisy':jnp.ones([1,448,448,3]),
+# 'flash':jnp.ones([1,448,448,3]),
+# 'net_input':jnp.ones([1,448,448,12]),
+# 'adapt_matrix':jnp.ones([1,3,3]),
+# 'color_matrix':jnp.ones([1,3,3])}
 for i in tqdm.trange(int(start_idx), int(opts.max_iter)):
     # Run training step and print losses
     # testim = sess.run(net_input)
-    params = update2(params,batch)
-    # # params, state = update(params,state,batch)
-    # val,aux = loss(params,batch)
-    # print(val)
-    # if(i % 100 == 0):
-    #     out = predict(aux['net_input'],params)
-    #     imshow = jnp.concatenate((aux['predicted'],aux['ambient'],aux['noisy'],aux['flash']),axis=2)
-    #     imshow = jnp.clip(imshow,0,1)
-    #     logger.addImage(imshow[0],'imshow')
-    #     logger.save_params(params,batch,i)
-    # logger.addScalar(val,'loss')
-    # logger.takeStep()
+    # params = update2(params,batch)
+    params, state = update(params,state,batch)
+    val,aux = loss(params,batch)
+    print(val)
+    if(i % 100 == 0):
+        out = predict(aux['net_input'],params)
+        imshow = jnp.concatenate((aux['predicted'],aux['ambient'],aux['noisy'],aux['flash']),axis=2)
+        imshow = jnp.clip(imshow,0,1)
+        logger.addImage(imshow[0],'imshow')
+        logger.save_params(params,batch,i)
+    logger.addScalar(val,'loss')
+    logger.takeStep()
