@@ -190,7 +190,7 @@ def loss(params,batch):
     f = (noisy + g)
     out = f - ambient
     loss = (out ** 2).mean()
-    return loss, {'predicted':jax.lax.stop_gradient(predicted), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
+    return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
 
