@@ -176,26 +176,29 @@ def predict(im,params):
 @jax.jit
 def loss(params,batch):
     predicted = predict(batch['net_input'],params)
-    g = tfu.camera_to_rgb_jax(
-      predicted/batch['alpha'], batch['color_matrix'], batch['adapt_matrix'])
-    ambient = tfu.camera_to_rgb_jax(
-        batch['ambient'],
-        batch['color_matrix'], batch['adapt_matrix'])
-    flash = tfu.camera_to_rgb_jax(
-        batch['flash']/batch['alpha'],
-        batch['color_matrix'], batch['adapt_matrix'])
-    noisy = tfu.camera_to_rgb_jax(
-        batch['noisy']/batch['alpha'],
-        batch['color_matrix'], batch['adapt_matrix'])
-    f = (noisy + g)
-    out = f - ambient
+    # predicted = tfu.camera_to_rgb_jax(
+    #   predicted/batch['alpha'], batch['color_matrix'], batch['adapt_matrix'])
+    # ambient = tfu.camera_to_rgb_jax(
+    #     batch['ambient'],
+    #     batch['color_matrix'], batch['adapt_matrix'])
+    # flash = tfu.camera_to_rgb_jax(
+    #     batch['flash']/batch['alpha'],
+    #     batch['color_matrix'], batch['adapt_matrix'])
+    # noisy = tfu.camera_to_rgb_jax(
+    #     batch['noisy']/batch['alpha'],
+    #     batch['color_matrix'], batch['adapt_matrix'])
+    ambient = batch['ambient']
+    flash = batch['flash']
+    noisy = batch['noisy']
+
+    out = predicted - ambient
     loss = (out ** 2).mean()
     return loss, {'predicted':jax.lax.stop_gradient(predicted), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
 
 lr = 1e-4
-logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','interpolation')
+logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','convnn_v1')
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
@@ -220,7 +223,18 @@ if(data is not None):
     batch = data['state']
     params = data['params']
     start_idx = data['idx']
+# start_idx=0
+# batch = {'alpha':jnp.ones([1,1,1,1]),
+# 'ambient':jnp.ones([1,448,448,3]),
+# 'noisy':jnp.ones([1,448,448,3]),
+# 'flash':jnp.ones([1,448,448,3]),
+# 'net_input':jnp.ones([1,448,448,12]),
+# 'adapt_matrix':jnp.ones([1,3,3]),
+# 'color_matrix':jnp.ones([1,3,3])}
 for i in tqdm.trange(int(start_idx), int(opts.max_iter)):
+    # Run training step and print losses
+    # testim = sess.run(net_input)
+    # params = update2(params,batch)
     print('before update')
     params, state = update(params,state,batch)
     print('after')
