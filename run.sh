@@ -2,7 +2,7 @@
 cp /root/ssh_mount/id_rsa* /root/.ssh/
 chmod 400 ~/.ssh/id_rsa
 pip3 install imageio
-sudo apt-get install exiftool
+sudo apt-get -y install exiftool
 pip3 install PyExifTool
 python3 -c """import imageio
 imageio.plugins.freeimage.download()
