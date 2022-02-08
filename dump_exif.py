@@ -10,7 +10,7 @@ import numpy as np
 # parser = argparse.ArgumentParser()
 # parser.add_argument('data_dir',default='/home/mohammad/Projects/optimizer/baselines/dataset/flash_no_flash/merged', help='directory of dataset')
 # opts = parser.parse_args()
-data_dir='/home/mohammad/Projects/optimizer/baselines/dataset/flash_no_flash/merged'
+data_dir='/mshvol2/users/mohammad/optimization/DifferentiableSolver/data/merged'
 
 ILLUMINANTS = {
     "a": (1.09850, 1.00000, 0.35585),
