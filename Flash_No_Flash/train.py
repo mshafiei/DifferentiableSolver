@@ -187,15 +187,16 @@ def loss(params,batch):
     noisy = tfu.camera_to_rgb_jax(
         batch['noisy']/batch['alpha'],
         batch['color_matrix'], batch['adapt_matrix'])
-    f = (noisy + g)
-    out = f - ambient
-    loss = (out ** 2).mean()
+    # f = (noisy + g)
+    f = g
+    diff = f - ambient
+    loss = (diff ** 2).mean()
     return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
 
 lr = 1e-4
-logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','interpolation')
+logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','convnn_overfit')
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
