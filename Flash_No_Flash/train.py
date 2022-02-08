@@ -29,14 +29,14 @@ class Conv3features(nn.Module):
 
   def setup(self):
     self.straight1       = nn.Conv(12,(3,3),strides=(1,1),use_bias=True)
-    self.straight2       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
-    self.straight3       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
-    self.straight4       = nn.Conv(16,(3,3),strides=(1,1),use_bias=True)
+    self.straight2       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
+    self.straight3       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
+    self.straight4       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
     self.straight5       = nn.Conv(3,(3,3),strides=(1,1),use_bias=True)
     self.groupnorm1      = nn.GroupNorm(3)
-    self.groupnorm2      = nn.GroupNorm(16)
-    self.groupnorm3      = nn.GroupNorm(16)
-    self.groupnorm4      = nn.GroupNorm(16)
+    self.groupnorm2      = nn.GroupNorm(32)
+    self.groupnorm3      = nn.GroupNorm(32)
+    self.groupnorm4      = nn.GroupNorm(32)
     self.groupnorm5      = nn.GroupNorm(3)
   @nn.compact
   def __call__(self,x):
