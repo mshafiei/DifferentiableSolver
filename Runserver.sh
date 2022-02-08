@@ -1,5 +1,5 @@
 #!/bin/bash
-name=msh-autodiff-overfit
+name=msh-autodiff-interpolation
 ngpus=1
 ncpus=2
 meml=15G

@@ -5,7 +5,8 @@ import deepfnf_utils.utils as ut
 import deepfnf_utils.tf_utils as tfu
 from deepfnf_utils.dataset import Dataset
 import jax
-from flax import linen as nn
+from cvgutils.nn import jaxutils
+
 import argparse
 import jax.numpy as jnp
 import tqdm
@@ -13,6 +14,7 @@ from jax.config import config
 from jaxopt import OptaxSolver
 import cvgutils.Viz as cvgviz
 import cvgutils.Image as cvgim
+import numpy as np
 config.update("jax_debug_nans", True)
 # tf.compat.v1.disable_eager_execution()
 # config = tf.compat.v1.ConfigProto()
@@ -25,43 +27,7 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 # config = tf.config.experimental.set_memory_growth(physical_devices[1], True)
 
 ################ inner loop model end ############################
-class Conv3features(nn.Module):
 
-  def setup(self):
-    self.straight1       = nn.Conv(12,(3,3),strides=(1,1),use_bias=True)
-    self.straight2       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
-    self.straight3       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
-    self.straight4       = nn.Conv(256,(3,3),strides=(1,1),use_bias=True)
-    self.straight5       = nn.Conv(3,(3,3),strides=(1,1),use_bias=True)
-    self.groupnorm1      = nn.GroupNorm(3)
-    self.groupnorm2      = nn.GroupNorm(32)
-    self.groupnorm3      = nn.GroupNorm(32)
-    self.groupnorm4      = nn.GroupNorm(32)
-    self.groupnorm5      = nn.GroupNorm(3)
-  @nn.compact
-  def __call__(self,x):
-    l1 = self.groupnorm1(nn.softplus(self.straight1(x)))
-    l2 = self.groupnorm2(nn.softplus(self.straight2(l1)))
-    l3 = self.groupnorm3(nn.softplus(self.straight3(l2)))
-    l4 = self.groupnorm4(nn.softplus(self.straight4(l3)))
-    l5 = self.groupnorm5(nn.softplus(self.straight5(l4)))
-    return nn.tanh(l5)
-
-def outer_objective_id(inpt,outpt,params,data):
-  """Validation loss."""
-
-  out = Conv3features().apply({'params': params}, inpt)
-  
-  out = tfu.camera_to_rgb_jax(
-      out/data['alpha'], data['color_matrix'], data['adapt_matrix'])
-  gt = tfu.camera_to_rgb_jax(
-      data['gt'],
-      data['color_matrix'], data['adapt_matrix'])
-  init = tfu.camera_to_rgb_jax(
-      outpt/data['alpha'],
-      data['color_matrix'], data['adapt_matrix'])
-  l2 = ((out - gt) ** 2).sum()
-  return l2, out
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', default=1, help='Image count in a batch')
@@ -75,6 +41,8 @@ parser.add_argument('--max_iter', default=1e6, help='Maximum rotation')
 parser.add_argument('--viz_freq', default=20, help='Maximum rotation')
 parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
 parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
+parser.add_argument('--model', type=str, default='overfit_unet',
+choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet'],help='Which model to use')
 opts = parser.parse_args()
 
 TLIST = 'data/train.txt'
@@ -83,6 +51,7 @@ VPATH = 'data/valset/'
 BSZ = opts.batch_size
 IMSZ = opts.image_size
 displacement = opts.displacement
+model = opts.model
 LR = 1e-4
 DROP = (1.1e6, 1.25e6) # Learning rate drop
 MAXITER = 1.5e6
@@ -160,7 +129,23 @@ batch = dataset.iterator.next()
 batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
 preprocessed = preprocess(batch)
 testim = preprocessed['net_input']
-params = Conv3features().init(init_rng, jnp.array(testim))['params']
+if(opts.model == 'overfit_straight'):
+    init_model = lambda rng, x: jaxutils.StraightCNN().init(rng, x)['params']
+    model = lambda params, batch: jaxutils.StraightCNN().apply({'params': params}, batch['net_input'])
+elif(opts.model == 'interpolate_straight'):
+    init_model = lambda rng, x: jaxutils.StraightCNN().init(rng, x)['params']
+    model = lambda params, batch: jaxutils.StraightCNN().apply({'params': params}, batch['net_input']) + batch['noisy']
+elif(opts.model == 'overfit_unet'):
+    init_model = lambda rng, x: jaxutils.UNet(4).init(rng, x)['params']
+    model = lambda params, batch: jaxutils.UNet(4).apply({'params': params}, batch['net_input'])
+elif(opts.model == 'interpolate_unet'):
+    init_model = lambda rng, x: jaxutils.UNet(4).init(rng, x)['params']
+    model = lambda params, batch: jaxutils.UNet(4).apply({'params': params}, batch['net_input']) + batch['noisy']
+else:
+    print('Model unrecognized')
+    exit(0)
+
+params = init_model(init_rng, jnp.array(testim))
 
 tf.debugging.set_log_device_placement(True)
 
@@ -171,11 +156,11 @@ dataset.swap_train()
 
 @jax.jit
 def predict(im,params):
-    return Conv3features().apply({'params': params}, im)
+    return model(params, im)
 
 @jax.jit
 def loss(params,batch):
-    predicted = predict(batch['net_input'],params)
+    predicted = model(params,batch)
     g = tfu.camera_to_rgb_jax(
       predicted/batch['alpha'], batch['color_matrix'], batch['adapt_matrix'])
     ambient = tfu.camera_to_rgb_jax(
@@ -187,8 +172,7 @@ def loss(params,batch):
     noisy = tfu.camera_to_rgb_jax(
         batch['noisy']/batch['alpha'],
         batch['color_matrix'], batch['adapt_matrix'])
-    # f = g
-    f = (noisy + g)
+    f = g
     diff = f - ambient
     loss = (diff ** 2).mean()
     return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
@@ -204,16 +188,9 @@ state = solver.init_state(params)
 def update(params,state,batch):    
     params, state = solver.update(params, state,batch=batch)
     return params, state
-@jax.jit
-def update2(params,batch):
-    params = jax.tree_multimap(lambda x,y:x-lr*y, params, g(params,batch)[0])
-    return params
-print('before first iter')
 batch = dataset.iterator.next()
-print('before preprocess iter')
 batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
 batch = preprocess(batch)
-print('loading params')
 data = logger.load_params()
 start_idx=0
 if(data is not None):
@@ -221,16 +198,14 @@ if(data is not None):
     batch = data['state']
     params = data['params']
     start_idx = data['idx']
-for i in tqdm.trange(int(start_idx), int(opts.max_iter)):
-    print('before update')
-    params, state = update(params,state,batch)
-    print('after')
-    print('after log')
-    print(state.value)
-    if(i % 1000 == 0):
-        imshow = jnp.concatenate((state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']),axis=2)
-        imshow = jnp.clip(imshow,0,1)
-        logger.addImage(imshow[0],'imshow')
-        logger.save_params(params,batch,i)
-    logger.addScalar(state.value,'loss')
-    logger.takeStep()
+with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
+    for i in t:
+        params, state = update(params,state,batch)
+        t.set_description('Error '+str(np.array(state.value)))
+        if(i % 1000 == 0):
+            imshow = jnp.concatenate((state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']),axis=2)
+            imshow = jnp.clip(imshow,0,1)
+            logger.addImage(imshow[0],'imshow')
+            logger.save_params(params,batch,i)
+        logger.addScalar(state.value,'loss')
+        logger.takeStep()
