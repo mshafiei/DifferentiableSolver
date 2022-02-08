@@ -174,7 +174,7 @@ def predict(im,params):
     return Conv3features().apply({'params': params}, im)
 
 @jax.jit
-def loss(params,batch,model):
+def loss(params,batch):
     predicted = predict(batch['net_input'],params)
     g = tfu.camera_to_rgb_jax(
       predicted/batch['alpha'], batch['color_matrix'], batch['adapt_matrix'])
@@ -187,10 +187,8 @@ def loss(params,batch,model):
     noisy = tfu.camera_to_rgb_jax(
         batch['noisy']/batch['alpha'],
         batch['color_matrix'], batch['adapt_matrix'])
-    if(model == 'overfit'):
-        f = g
-    elif(model == 'interpolation'):
-        f = (noisy + g)
+    # f = g
+    f = (noisy + g)
     diff = f - ambient
     loss = (diff ** 2).mean()
     return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
@@ -204,7 +202,7 @@ state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
 @jax.jit
 def update(params,state,batch):    
-    params, state = solver.update(params, state,batch=batch,model='interpolation')
+    params, state = solver.update(params, state,batch=batch)
     return params, state
 @jax.jit
 def update2(params,batch):
