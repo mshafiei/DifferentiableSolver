@@ -4,5 +4,5 @@ python3 -c """import imageio
 imageio.plugins.freeimage.download()
 """
 cd /mshvol2/users/mohammad/optimization/DifferentiableSolver
-export PYTHONPATH=`pwd`:/mshvol/users/mohammad/cvgutils/
+export PYTHONPATH=`pwd`:/mshvol2/users/mohammad/cvgutils/
 python3 Flash_No_Flash/train.py
