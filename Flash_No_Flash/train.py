@@ -43,6 +43,9 @@ parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
 parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 parser.add_argument('--model', type=str, default='overfit_unet',
 choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet'],help='Which model to use')
+parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help='Direction to store log used as ')
+parser.add_argument('--expname', type=str, default='convnn_interpolation_256',help='Name of the experiment used as logdir/exp_name')
+
 opts = parser.parse_args()
 
 TLIST = 'data/train.txt'
@@ -180,7 +183,7 @@ def loss(params,batch):
 
 
 lr = 1e-4
-logger = cvgviz.logger('./logger/Flash_No_Flash','filesystem','Flash_No_Flash','convnn_interpolation_256')
+logger = cvgviz.logger(opts.logdir,'filesystem','Flash_No_Flash',opts.expname)
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)

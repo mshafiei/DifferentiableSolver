@@ -9,4 +9,4 @@ imageio.plugins.freeimage.download()
 """
 cd /mshvol2/users/mohammad/optimization/DifferentiableSolver
 export PYTHONPATH=`pwd`:/mshvol2/users/mohammad/cvgutils/
-python3 Flash_No_Flash/train.py
+python3 Flash_No_Flash/train.py $@
