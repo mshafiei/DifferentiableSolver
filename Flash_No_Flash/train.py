@@ -28,15 +28,15 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 
 ################ inner loop model end ############################
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', default=1, help='Image count in a batch')
 parser.add_argument('--image_size', default=448, help='Width and height of an image')
-parser.add_argument('--displacement', default=0, help='Random shift in pixels')
-parser.add_argument('--min_scale', default=1, help='Random shift in pixels')
-parser.add_argument('--max_scale', default=1, help='Random shift in pixels')
-parser.add_argument('--max_rotate', default=0, help='Maximum rotation')
+parser.add_argument('--displacement', default=2, help='Random shift in pixels')
+parser.add_argument('--min_scale', default=0.98, help='Random shift in pixels')
+parser.add_argument('--max_scale', default=1.02, help='Random shift in pixels')
+parser.add_argument('--max_rotate', default=np.deg2rad(0.5), help='Maximum rotation')
 parser.add_argument('--lr', default=1e-4, help='Maximum rotation')
+parser.add_argument('--display_freq', default=1000, help='Display frequency by iteration count')
 parser.add_argument('--max_iter', default=1e6, help='Maximum rotation')
 parser.add_argument('--viz_freq', default=20, help='Maximum rotation')
 parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
@@ -44,7 +44,7 @@ parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 parser.add_argument('--model', type=str, default='overfit_unet',
 choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet'],help='Which model to use')
 parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help='Direction to store log used as ')
-parser.add_argument('--expname', type=str, default='convnn_interpolation_256',help='Name of the experiment used as logdir/exp_name')
+parser.add_argument('--expname', type=str, default='unvet_generalize_256',help='Name of the experiment used as logdir/exp_name')
 
 opts = parser.parse_args()
 
@@ -191,9 +191,6 @@ state = solver.init_state(params)
 def update(params,state,batch):    
     params, state = solver.update(params, state,batch=batch)
     return params, state
-batch = dataset.iterator.next()
-batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-batch = preprocess(batch)
 data = logger.load_params()
 start_idx=0
 if(data is not None):
@@ -203,9 +200,12 @@ if(data is not None):
     start_idx = data['idx']
 with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
+        batch = dataset.iterator.next()
+        batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
+        batch = preprocess(batch)
         params, state = update(params,state,batch)
         t.set_description('Error '+str(np.array(state.value)))
-        if(i % 1000 == 0):
+        if(i % opts.display_freq == 0):
             imshow = jnp.concatenate((state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']),axis=2)
             imshow = jnp.clip(imshow,0,1)
             logger.addImage(imshow[0],'imshow')
