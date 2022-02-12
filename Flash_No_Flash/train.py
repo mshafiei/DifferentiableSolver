@@ -39,6 +39,8 @@ parser.add_argument('--lr', default=1e-4, help='Maximum rotation')
 parser.add_argument('--display_freq', default=1000, help='Display frequency by iteration count')
 parser.add_argument('--max_iter', default=1e6, help='Maximum rotation')
 parser.add_argument('--viz_freq', default=20, help='Maximum rotation')
+parser.add_argument('--TLIST', default='data/train.txt', help='Maximum rotation')
+parser.add_argument('--VPATH', default='data/valset/', help='Maximum rotation')
 parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
 parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 parser.add_argument('--model', type=str, default='overfit_unet',
@@ -47,9 +49,6 @@ parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help
 parser.add_argument('--expname', type=str, default='unvet_generalize_256',help='Name of the experiment used as logdir/exp_name')
 
 opts = parser.parse_args()
-
-TLIST = 'data/train.txt'
-VPATH = 'data/valset/'
 
 BSZ = opts.batch_size
 IMSZ = opts.image_size
@@ -65,7 +64,7 @@ SAVEFREQ = 5e4
 # sess = tf.compat.v1.Session(config=config)
 # sess.run(tf.compat.v1.global_variables_initializer())
 tf.config.set_visible_devices([], device_type='GPU')
-dataset = Dataset(TLIST, VPATH, bsz=BSZ, psz=IMSZ,
+dataset = Dataset(opts.TLIST, opts.VPATH, bsz=BSZ, psz=IMSZ,
                     ngpus=opts.ngpus, nthreads=4 * opts.ngpus,
                     jitter=displacement, min_scale=opts.min_scale, max_scale=opts.max_scale, theta=opts.max_rotate)
 
