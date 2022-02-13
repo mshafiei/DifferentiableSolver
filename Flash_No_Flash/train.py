@@ -148,7 +148,8 @@ else:
     exit(0)
 
 params = init_model(init_rng, jnp.array(testim))
-
+flat_params = jax.tree_util.tree_flatten(params)
+parameters_count = jnp.array([jnp.prod(jnp.array(flat_params[0][i].shape)) for i in range(len(flat_params[0]))]).sum()
 tf.debugging.set_log_device_placement(True)
 
 dataset.swap_train()
@@ -180,9 +181,10 @@ def loss(params,batch):
     return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
-
+info = opts.__dict__
+info.update({'params_count':parameters_count})
 lr = 1e-4
-logger = cvgviz.logger(opts.logdir,'filesystem','Flash_No_Flash',opts.expname,opts)
+logger = cvgviz.logger(opts.logdir,'filesystem','Flash_No_Flash',opts.expname,info)
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
