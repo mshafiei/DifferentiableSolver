@@ -37,8 +37,8 @@ parser.add_argument('--max_scale', default=1.02, help='Random shift in pixels')
 parser.add_argument('--max_rotate', default=np.deg2rad(0.5), help='Maximum rotation')
 parser.add_argument('--lr', default=1e-4, help='Maximum rotation')
 parser.add_argument('--display_freq', default=1000, help='Display frequency by iteration count')
+parser.add_argument('--val_freq', default=100, help='Display frequency by iteration count')
 parser.add_argument('--max_iter', default=1e6, help='Maximum rotation')
-parser.add_argument('--viz_freq', default=20, help='Maximum rotation')
 parser.add_argument('--TLIST', default='data/train.txt', help='Maximum rotation')
 parser.add_argument('--VPATH', default='data/valset/', help='Maximum rotation')
 parser.add_argument('--save_param_freq', default=20, help='Maximum rotation')
@@ -192,6 +192,7 @@ def update(params,state,batch):
     return params, state
 data = logger.load_params()
 start_idx=0
+val_iterator = iter(dataset.val.dataset)
 if(data is not None):
     # state = data['state']
     batch = data['state']
@@ -199,15 +200,22 @@ if(data is not None):
     start_idx = data['idx']
 with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
-        batch = dataset.iterator.next()
+        val_iter = i % opts.val_freq == 0
+        mode = 'val' if val_iter else 'train'
+        batch = val_iterator.next() if val_iter else dataset.iterator.next()
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
         batch = preprocess(batch)
-        params, state = update(params,state,batch)
-        t.set_description('Error '+str(np.array(state.value)))
-        if(i % opts.display_freq == 0):
-            imshow = jnp.concatenate((state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']),axis=2)
+        if(val_iter):
+            loss_state = loss(params,batch)
+            loss_val,predicted,ambient,noisy,flash = loss_state[0], loss_state[1]['predicted'],loss_state[1]['ambient'],loss_state[1]['noisy'],loss_state[1]['flash']
+        else:
+            params, state = update(params,state,batch)
+            loss_val,predicted,ambient,noisy,flash = state.value, state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']
+        t.set_description('Error '+str(np.array(loss_val)))
+        if(i % opts.display_freq == 0 or val_iter):
+            imshow = jnp.concatenate((predicted,ambient,noisy,flash),axis=2)
             imshow = jnp.clip(imshow,0,1)
-            logger.addImage(imshow[0],'imshow')
+            logger.addImage(imshow[0],'imshow',mode=mode)
             logger.save_params(params,batch,i)
-        logger.addScalar(state.value,'loss')
+        logger.addScalar(loss_val,'loss',mode=mode)
         logger.takeStep()
