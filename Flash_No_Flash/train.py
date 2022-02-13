@@ -193,16 +193,36 @@ def update(params,state,batch):
 data = logger.load_params()
 start_idx=0
 val_iterator = iter(dataset.val.dataset)
+train_iterator = iter(dataset.train.dataset)
 if(data is not None):
     # state = data['state']
     batch = data['state']
     params = data['params']
     start_idx = data['idx']
+
+def get_batch(val_iter):
+    if(val_iter):
+        try:
+            batch = val_iterator.next()
+        except Exception():
+            batch = iter(dataset.val.dataset)
+            batch = val_iterator.next()
+    else:
+        try:
+            batch = train_iterator.next()
+        except Exception():
+            batch = iter(dataset.train.dataset)
+            batch = train_iterator.next()
+    return batch
+    
+
+
+
 with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
         val_iter = i % opts.val_freq == 0
         mode = 'val' if val_iter else 'train'
-        batch = val_iterator.next() if val_iter else dataset.iterator.next()
+        batch = get_batch(val_iter)
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
         batch = preprocess(batch)
         if(val_iter):
