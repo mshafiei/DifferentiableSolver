@@ -15,6 +15,7 @@ from jaxopt import OptaxSolver
 import cvgutils.Viz as cvgviz
 import cvgutils.Image as cvgim
 import numpy as np
+import cvgutils.Linalg as linalg
 config.update("jax_debug_nans", True)
 # tf.compat.v1.disable_eager_execution()
 # config = tf.compat.v1.ConfigProto()
@@ -178,7 +179,8 @@ def loss(params,batch):
     f = g
     diff = f - ambient
     loss = (diff ** 2).mean()
-    return loss, {'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
+    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(f),ambient)
+    return loss, {'psnr':psnr,'predicted':jax.lax.stop_gradient(f), 'ambient':ambient, 'flash':flash, 'noisy':noisy}
 
 
 info = opts.__dict__
@@ -229,16 +231,19 @@ with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
         batch = preprocess(batch)
         if(val_iter):
             loss_state = loss(params,batch)
-            loss_val,predicted,ambient,noisy,flash = loss_state[0], loss_state[1]['predicted'],loss_state[1]['ambient'],loss_state[1]['noisy'],loss_state[1]['flash']
+            loss_val,predicted,ambient,noisy,flash,psnr = loss_state[0], loss_state[1]['predicted'],loss_state[1]['ambient'],loss_state[1]['noisy'],loss_state[1]['flash'],loss_state[1]['psnr']
         else:
             params, state = update(params,state,batch)
-            loss_val,predicted,ambient,noisy,flash = state.value, state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash']
-        t.set_description('Error '+str(np.array(loss_val)))
+            loss_val,predicted,ambient,noisy,flash,psnr = state.value, state.aux['predicted'],state.aux['ambient'],state.aux['noisy'],state.aux['flash'],state.aux['psnr']
+        t.set_description('Error l2 '+str(np.array(loss_val))+' psnr '+str(psnr))
         if(i % opts.display_freq == 0 or val_iter):
             imshow = jnp.concatenate((predicted,ambient,noisy,flash),axis=2)
             imshow = jnp.clip(imshow,0,1)
             logger.addImage(imshow[0],'imshow',mode=mode)
         if(i % opts.save_param_freq == 0):
             logger.save_params(params,batch,i)
+        
         logger.addScalar(loss_val,'loss',mode=mode)
+        logger.addScalar(psnr,'psnr',mode=mode)
+        
         logger.takeStep()
