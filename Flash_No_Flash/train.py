@@ -170,7 +170,7 @@ def loss(params,batch):
         batch['ambient'],
         batch['color_matrix'], batch['adapt_matrix'])
     flash = tfu.camera_to_rgb_jax(
-        batch['flash']/batch['alpha'],
+        batch['flash'],
         batch['color_matrix'], batch['adapt_matrix'])
     noisy = tfu.camera_to_rgb_jax(
         batch['noisy']/batch['alpha'],
