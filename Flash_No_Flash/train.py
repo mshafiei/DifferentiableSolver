@@ -30,7 +30,7 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 ################ inner loop model end ############################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', default=1, type=int,help='Image count in a batch')
+parser.add_argument('--batch_size', default=4, type=int,help='Image count in a batch')
 parser.add_argument('--image_size', default=448, type=int,help='Width and height of an image')
 parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
 parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
@@ -74,19 +74,11 @@ dataset.swap_train()
 #########################################################################
 
 # Check for saved weights & optimizer states
-def preprocess(example):
-    key1 = jax.random.PRNGKey(100)
-    key2 = jax.random.PRNGKey(101)
-    key3 = jax.random.PRNGKey(102)
-    key4 = jax.random.PRNGKey(103)
-    key5 = jax.random.PRNGKey(100)
-    key6 = jax.random.PRNGKey(101)
-    key7 = jax.random.PRNGKey(102)
-    key8 = jax.random.PRNGKey(103)
-    key9 = jax.random.PRNGKey(102)
-    key10 = jax.random.PRNGKey(103)
-
+def preprocess(example,keys):
     
+
+    key1, key2, key3, key4, key5, key6, key7, key8, key9, key10= keys
+
     # for i in range(opts.ngpus):
         # with tf.device('/gpu:%d' % i):
     alpha = example['alpha'][:, None, None, None]
@@ -130,7 +122,17 @@ rng = jax.random.PRNGKey(1)
 rng, init_rng = jax.random.split(rng)
 batch = dataset.iterator.next()
 batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-preprocessed = preprocess(batch)
+keys = [jax.random.PRNGKey(100),
+        jax.random.PRNGKey(101),
+        jax.random.PRNGKey(102),
+        jax.random.PRNGKey(103),
+        jax.random.PRNGKey(100),
+        jax.random.PRNGKey(101),
+        jax.random.PRNGKey(102),
+        jax.random.PRNGKey(103),
+        jax.random.PRNGKey(102),
+        jax.random.PRNGKey(103)]
+preprocessed = preprocess(batch,keys)
 testim = preprocessed['net_input']
 if(opts.model == 'overfit_straight'):
     init_model = lambda rng, x: jaxutils.StraightCNN().init(rng, x)['params']
@@ -228,7 +230,7 @@ with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
         mode = 'val' if val_iter else 'train'
         batch = get_batch(val_iter,val_iterator,train_iterator)
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-        batch = preprocess(batch)
+        batch = preprocess(batch,keys)
         if(val_iter):
             loss_state = loss(params,batch)
             loss_val,predicted,ambient,noisy,flash,psnr = loss_state[0], loss_state[1]['predicted'],loss_state[1]['ambient'],loss_state[1]['noisy'],loss_state[1]['flash'],loss_state[1]['psnr']
