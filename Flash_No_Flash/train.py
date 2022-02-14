@@ -202,17 +202,17 @@ if(data is not None):
     params = data['params']
     start_idx = data['idx']
 
-def get_batch(val_iter):
+def get_batch(val_iter,val_iterator,train_iterator):
     if(val_iter):
         try:
             batch = val_iterator.next()
-        except:
+        except StopIteration:
             val_iterator = iter(dataset.val.dataset)
             batch = val_iterator.next()
     else:
         try:
             batch = train_iterator.next()
-        except:
+        except StopIteration:
             train_iterator = iter(dataset.train.dataset)
             batch = train_iterator.next()
     return batch
@@ -224,7 +224,7 @@ with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
         val_iter = i % opts.val_freq == 0
         mode = 'val' if val_iter else 'train'
-        batch = get_batch(val_iter)
+        batch = get_batch(val_iter,val_iterator,train_iterator)
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
         batch = preprocess(batch)
         if(val_iter):
