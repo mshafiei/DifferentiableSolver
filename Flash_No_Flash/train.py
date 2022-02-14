@@ -207,13 +207,13 @@ def get_batch(val_iter):
         try:
             batch = val_iterator.next()
         except:
-            batch = iter(dataset.val.dataset)
+            val_iterator = iter(dataset.val.dataset)
             batch = val_iterator.next()
     else:
         try:
             batch = train_iterator.next()
         except:
-            batch = iter(dataset.train.dataset)
+            train_iterator = iter(dataset.train.dataset)
             batch = train_iterator.next()
     return batch
     
