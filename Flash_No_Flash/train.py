@@ -233,11 +233,11 @@ def get_batch(val_iter,val_iterator,train_iterator):
 
 val_iter = False#i % opts.val_freq == 0
 mode = 'val' if val_iter else 'train'
-batch2 = get_batch(val_iter,val_iterator,train_iterator)
-batch2 = {k:jnp.array(v.numpy()) for k,v in batch2.items()}
 
 with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
+        batch2 = get_batch(val_iter,val_iterator,train_iterator)
+        batch2 = {k:jnp.array(v.numpy()) for k,v in batch2.items()}
         batch = preprocess(batch2,keys)
         if(val_iter):
             loss_state = loss(params,batch)
