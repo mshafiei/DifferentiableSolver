@@ -47,6 +47,7 @@ parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 parser.add_argument('--model', type=str, default='overfit_unet',
 choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet'],help='Which model to use')
 parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help='Direction to store log used as ')
+parser.add_argument('--logger', type=str, default='filesystem',choices=['tb','filesystem'],help='Where to dump the logs')
 parser.add_argument('--expname', type=str, default='unvet_generalize_256',help='Name of the experiment used as logdir/exp_name')
 
 opts = parser.parse_args()
@@ -79,29 +80,35 @@ def preprocess(example,keys):
 
     key1, key2, key3, key4, key5, key6, key7, key8, key9, key10= keys
 
-    # for i in range(opts.ngpus):
-        # with tf.device('/gpu:%d' % i):
+    # # for i in range(opts.ngpus):
+    #     # with tf.device('/gpu:%d' % i):
     alpha = example['alpha'][:, None, None, None]
-    dimmed_ambient, _ = tfu.dim_image_jax(
-        example['ambient'], key1,alpha=alpha)
-    dimmed_warped_ambient, _ = tfu.dim_image_jax(
-        example['warped_ambient'],key2, alpha=alpha)
+    # dimmed_ambient, _ = tfu.dim_image_jax(
+    #     example['ambient'], key1,alpha=alpha)
+    # dimmed_warped_ambient, _ = tfu.dim_image_jax(
+    #     example['warped_ambient'],key2, alpha=alpha)
 
-    # Make the flash brighter by increasing the brightness of the
-    # flash-only image.
-    flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
-    warped_flash = example['warped_flash_only'] * \
-        ut.FLASH_STRENGTH + dimmed_warped_ambient
+    # # Make the flash brighter by increasing the brightness of the
+    # # flash-only image.
+    # flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+    # warped_flash = example['warped_flash_only'] * \
+    #     ut.FLASH_STRENGTH + dimmed_warped_ambient
 
-    sig_read = example['sig_read'][:, None, None, None]
-    sig_shot = example['sig_shot'][:, None, None, None]
-    noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
-        dimmed_ambient,key3,key4,key5,key6, sig_read=sig_read, sig_shot=sig_shot)
-    noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
-        warped_flash,key7,key8,key9,key10, sig_read=sig_read, sig_shot=sig_shot)
+    # sig_read = example['sig_read'][:, None, None, None]
+    # sig_shot = example['sig_shot'][:, None, None, None]
+    # noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
+    #     dimmed_ambient,key3,key4,key5,key6, sig_read=sig_read, sig_shot=sig_shot)
+    # noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
+    #     warped_flash,key7,key8,key9,key10, sig_read=sig_read, sig_shot=sig_shot)
+
+    noisy_ambient = jnp.zeros_like(example['ambient'])
+    noisy_flash = jnp.zeros_like(example['ambient'])
+    sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+    sig_read = jnp.zeros((*example['ambient'].shape[:-1],6))
+    sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
 
     noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
-    noise_std = tfu.estimate_std_jax(noisy, sig_read, sig_shot)
+    noise_std = jnp.zeros((*example['ambient'].shape[:-1],6)) #tfu.estimate_std_jax(noisy, sig_read, sig_shot)
     net_input = jnp.concatenate([noisy, noise_std], axis=-1)
     
     output = {
@@ -110,8 +117,8 @@ def preprocess(example,keys):
         'flash':noisy_flash,
         'noisy':noisy_ambient,
         'net_input':net_input,
-        'adapt_matrix':jnp.array(example['adapt_matrix']),
-        'color_matrix':jnp.array(example['color_matrix'])
+        'adapt_matrix':example['adapt_matrix'],
+        'color_matrix':example['color_matrix']
     }
 
     return output
@@ -188,7 +195,7 @@ def loss(params,batch):
 info = opts.__dict__
 info.update({'params_count':parameters_count})
 lr = 1e-4
-logger = cvgviz.logger(opts.logdir,'filesystem','Flash_No_Flash',opts.expname,info)
+logger = cvgviz.logger(opts.logdir,opts.logger,'Flash_No_Flash',opts.expname,info)
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 # g = jax.grad(loss,has_aux=True)
@@ -223,14 +230,14 @@ def get_batch(val_iter,val_iterator,train_iterator):
     
 
 
+val_iter = False#i % opts.val_freq == 0
+mode = 'val' if val_iter else 'train'
+batch2 = get_batch(val_iter,val_iterator,train_iterator)
+batch2 = {k:jnp.array(v.numpy()) for k,v in batch2.items()}
 
 with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
     for i in t:
-        val_iter = i % opts.val_freq == 0
-        mode = 'val' if val_iter else 'train'
-        batch = get_batch(val_iter,val_iterator,train_iterator)
-        batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-        batch = preprocess(batch,keys)
+        batch = preprocess(batch2,keys)
         if(val_iter):
             loss_state = loss(params,batch)
             loss_val,predicted,ambient,noisy,flash,psnr = loss_state[0], loss_state[1]['predicted'],loss_state[1]['ambient'],loss_state[1]['noisy'],loss_state[1]['flash'],loss_state[1]['psnr']
