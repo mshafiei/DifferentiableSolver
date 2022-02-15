@@ -35,7 +35,7 @@ parser.add_argument('--image_size', default=448, type=int,help='Width and height
 parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
 parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
 parser.add_argument('--max_scale', default=1.02,type=float, help='Random shift in pixels')
-parser.add_argument('--max_rotate', default=np.deg2rad(0.5), help='Maximum rotation')
+parser.add_argument('--max_rotate', default=np.deg2rad(0.5),type=float, help='Maximum rotation')
 parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
 parser.add_argument('--display_freq', default=100, type=int,help='Display frequency by iteration count')
 parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
