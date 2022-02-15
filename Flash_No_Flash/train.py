@@ -30,16 +30,16 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 ################ inner loop model end ############################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', default=4, type=int,help='Image count in a batch')
+parser.add_argument('--batch_size', default=15, type=int,help='Image count in a batch')
 parser.add_argument('--image_size', default=448, type=int,help='Width and height of an image')
 parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
 parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
 parser.add_argument('--max_scale', default=1.02,type=float, help='Random shift in pixels')
 parser.add_argument('--max_rotate', default=np.deg2rad(0.5), help='Maximum rotation')
 parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
-parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
+parser.add_argument('--display_freq', default=100, type=int,help='Display frequency by iteration count')
 parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
-parser.add_argument('--save_param_freq', default=1000,type=int, help='Maximum rotation')
+parser.add_argument('--save_param_freq', default=100,type=int, help='Maximum rotation')
 parser.add_argument('--max_iter', default=1e6, type=float,help='Maximum rotation')
 parser.add_argument('--TLIST', default='data/train.txt',type=str, help='Maximum rotation')
 parser.add_argument('--VPATH', default='data/valset/', type=str,help='Maximum rotation')
@@ -47,7 +47,7 @@ parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
 parser.add_argument('--model', type=str, default='overfit_unet',
 choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet'],help='Which model to use')
 parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help='Direction to store log used as ')
-parser.add_argument('--logger', type=str, default='filesystem',choices=['tb','filesystem'],help='Where to dump the logs')
+parser.add_argument('--logger', type=str, default='tb',choices=['tb','filesystem'],help='Where to dump the logs')
 parser.add_argument('--expname', type=str, default='unvet_generalize_256',help='Name of the experiment used as logdir/exp_name')
 
 opts = parser.parse_args()
@@ -83,29 +83,29 @@ def preprocess(example,keys):
     # # for i in range(opts.ngpus):
     #     # with tf.device('/gpu:%d' % i):
     alpha = example['alpha'][:, None, None, None]
-    # dimmed_ambient, _ = tfu.dim_image_jax(
-    #     example['ambient'], key1,alpha=alpha)
-    # dimmed_warped_ambient, _ = tfu.dim_image_jax(
-    #     example['warped_ambient'],key2, alpha=alpha)
+    dimmed_ambient, _ = tfu.dim_image_jax(
+        example['ambient'], key1,alpha=alpha)
+    dimmed_warped_ambient, _ = tfu.dim_image_jax(
+        example['warped_ambient'],key2, alpha=alpha)
 
-    # # Make the flash brighter by increasing the brightness of the
-    # # flash-only image.
-    # flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
-    # warped_flash = example['warped_flash_only'] * \
-    #     ut.FLASH_STRENGTH + dimmed_warped_ambient
+    # Make the flash brighter by increasing the brightness of the
+    # flash-only image.
+    flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+    warped_flash = example['warped_flash_only'] * \
+        ut.FLASH_STRENGTH + dimmed_warped_ambient
 
-    # sig_read = example['sig_read'][:, None, None, None]
-    # sig_shot = example['sig_shot'][:, None, None, None]
-    # noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
-    #     dimmed_ambient,key3,key4,key5,key6, sig_read=sig_read, sig_shot=sig_shot)
-    # noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
-    #     warped_flash,key7,key8,key9,key10, sig_read=sig_read, sig_shot=sig_shot)
+    sig_read = example['sig_read'][:, None, None, None]
+    sig_shot = example['sig_shot'][:, None, None, None]
+    noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
+        dimmed_ambient,key3,key4,key5,key6, sig_read=sig_read, sig_shot=sig_shot)
+    noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
+        warped_flash,key7,key8,key9,key10, sig_read=sig_read, sig_shot=sig_shot)
 
-    noisy_ambient = jnp.zeros_like(example['ambient'])
-    noisy_flash = jnp.zeros_like(example['ambient'])
-    sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
-    sig_read = jnp.zeros((*example['ambient'].shape[:-1],6))
-    sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+    # noisy_ambient = jnp.zeros_like(example['ambient'])
+    # noisy_flash = jnp.zeros_like(example['ambient'])
+    # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+    # sig_read = jnp.zeros((*example['ambient'].shape[:-1],6))
+    # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
 
     noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
     noise_std = jnp.zeros((*example['ambient'].shape[:-1],6)) #tfu.estimate_std_jax(noisy, sig_read, sig_shot)
@@ -174,6 +174,7 @@ def predict(im,params):
 @jax.jit
 def loss(params,batch):
     predicted = model(params,batch)
+
     g = tfu.camera_to_rgb_jax(
       predicted/batch['alpha'], batch['color_matrix'], batch['adapt_matrix'])
     ambient = tfu.camera_to_rgb_jax(
