@@ -268,6 +268,7 @@ def get_batch(val_iter,val_iterator,train_iterator):
 def visualize(x, params, batch):
     g = model(params,batch)
     ambient = camera_to_rgb(batch['ambient'],batch)
+    flash = camera_to_rgb(batch['flash'],batch)
 
     x_x = jnp.abs(dx(x) * 10)
     x_y = jnp.abs(dy(x) * 10)
@@ -275,7 +276,7 @@ def visualize(x, params, batch):
     g_y = jnp.abs(g[...,3:] * 10)
 
 
-    imshow = jnp.concatenate((x,ambient,x_x,g_x,x_y,g_y),axis=-2)
+    imshow = jnp.concatenate((x,ambient,flash,x_x,g_x,x_y,g_y),axis=-2)
     imshow = jnp.clip(imshow,0,1)
     return imshow
 ################ outer model start ###############################
