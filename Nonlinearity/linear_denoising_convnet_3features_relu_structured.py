@@ -119,13 +119,18 @@ def hyper_optimization():
   params = Conv3features().init(init_rng, testim)['params']
 
   lr = 0.0001
-  
+  @jax.jit
+  def update(params, state,init_inpt,data):
+    return solver.update(params, state,init_inner=init_inpt,data=data)
+    
   solver = OptaxSolver(fun=outer_objective_id, opt=optax.adam(lr),implicit_diff=True,has_aux=True)
   state = solver.init_state(params)
   for i in tqdm.trange(10000):
-    params, state = solver.update(params, state,init_inner=init_inpt,data=data)
+
+    params, state = update(params, state,init_inpt,data)
+
     x,count, gn_opt_err, gn_loss, lin_opt = state.aux
-    
+
     end = time.time()
     print('time: ',end - start)
     print('loss ',state.value, ' gn iteration count ', count)
@@ -135,7 +140,7 @@ def hyper_optimization():
       imshow = jnp.concatenate((x,noisy_image,im_gt),axis=2)
       imshow = jnp.concatenate(imshow,axis=1)
       imshow = jnp.clip(imshow,0,1)
-      logger.addImage(np.array(imshow).transpose(2,0,1),'Image')
+      logger.addImage(np.array(imshow),'Image')
     logger.takeStep()
 ################ outer model end #################################
 
