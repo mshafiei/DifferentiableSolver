@@ -315,7 +315,7 @@ with tqdm.trange(int(start_idx), int(opts.max_iter)) as t:
             logger.save_params(params,batch,i)
         
         logger.addScalar(loss_val,'loss',mode=mode)
-        # logger.addScalar(psnr,'psnr',mode=mode)
+        logger.addScalar(psnr,'psnr',mode=mode)
         
         logger.takeStep()
 ################ outer model end #################################
