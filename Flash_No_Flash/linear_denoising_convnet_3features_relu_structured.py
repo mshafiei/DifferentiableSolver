@@ -1,3 +1,8 @@
+"""
+Learning a screened poisson equation for flash no flash denoising.
+We solve a double optimization problem with gradient descent, gauss newton
+and conjugate gradient methods. We mostly focus on overfitting here.
+"""
 import argparse
 import jax
 import jax.numpy as jnp
