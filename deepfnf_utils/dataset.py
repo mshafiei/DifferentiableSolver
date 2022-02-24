@@ -139,14 +139,17 @@ class Dataset:
             self, train_list, val_path,
             bsz=32, psz=512, jitter=2,
             min_scale=0.98, max_scale=1.02, theta=np.deg2rad(0.5),
-            ngpus=1, nthreads=4, onfly_val=False):
+            ngpus=1, nthreads=4, onfly_val=False,min_alpha=0.02, max_alpha=0.2,
+        min_read=-3., max_read=-2, min_shot=-2., max_shot=-1.3):
         self.train = TrainSet(
             train_list, bsz, psz, jitter,
-            min_scale, max_scale, theta, ngpus, nthreads)
+            min_scale, max_scale, theta, ngpus, nthreads,min_alpha, max_alpha,
+        min_read, max_read, min_shot, max_shot)
         if onfly_val:
             self.val = _OnFlyValSet(
                 val_path, bsz, psz, jitter, min_scale, 
-                max_scale, theta, ngpus, nthreads)
+                max_scale, theta, ngpus, nthreads,min_alpha, max_alpha,
+        min_read, max_read, min_shot, max_shot)
         else:
             self.val = ValSet(val_path, bsz, ngpus)
 
@@ -171,12 +174,17 @@ class Dataset:
 class TrainSet:
     def __init__(
             self, file_list, bsz, psz, jitter,
-            min_scale, max_scale, theta, ngpus, nthreads):
+            min_scale, max_scale, theta, ngpus, nthreads,
+            min_alpha, max_alpha,
+            min_read, max_read, min_shot, max_shot):
         files = [l.strip() for l in open(file_list)]
 
         gen_homography_fn = functools.partial(
             gen_homography, jitter=jitter, min_scale=min_scale,
             max_scale=max_scale, theta=theta, psz=psz, is_val=True)
+        gen_random_params_fn = functools.partial(
+            gen_random_params, min_alpha=min_alpha, max_alpha=max_alpha,
+        min_read=min_read, max_read=max_read, min_shot=min_shot, max_shot=max_shot)
 
         color_matrices = np.stack(
             [COLOR_MAP_DATA[nm][0] for nm in files],
@@ -195,7 +203,7 @@ class TrainSet:
                         .shuffle(buffer_size=len(files))
                         .map(load_image, num_parallel_calls=nthreads)
                         .map(gen_homography_fn, num_parallel_calls=nthreads)
-                        .map(gen_random_params, num_parallel_calls=nthreads)
+                        .map(gen_random_params_fn, num_parallel_calls=nthreads)
                         .batch(bsz)
                         .prefetch(ngpus)
                         )
@@ -224,12 +232,17 @@ class ValSet:
 class _OnFlyValSet:
     def __init__(
             self, file_list, bsz, psz, jitter,
-            min_scale, max_scale, theta, ngpus, nthreads):
+            min_scale, max_scale, theta, ngpus, nthreads,
+            min_alpha, max_alpha,
+            min_read, max_read, min_shot, max_shot):
         files = [l.strip() for l in open(file_list)]
 
         gen_homography_fn = functools.partial(
             gen_homography, jitter=jitter, min_scale=min_scale,
             max_scale=max_scale, theta=theta, psz=psz, is_val=True)
+        gen_random_params_fn = functools.partial(
+            gen_random_params, min_alpha=min_alpha, max_alpha=max_alpha,
+        min_read=min_read, max_read=max_read, min_shot=min_shot, max_shot=max_shot)
 
         color_matrices = np.stack(
             [COLOR_MAP_DATA[nm][0] for nm in files],
@@ -246,7 +259,7 @@ class _OnFlyValSet:
         self.dataset = (dataset
                         .map(load_image, num_parallel_calls=nthreads)
                         .map(gen_homography_fn, num_parallel_calls=nthreads)
-                        .map(gen_random_params, num_parallel_calls=nthreads)
+                        .map(gen_random_params_fn, num_parallel_calls=nthreads)
                         .batch(bsz, drop_remainder=True)
                         .prefetch(ngpus)
                         )
