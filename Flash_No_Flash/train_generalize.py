@@ -23,6 +23,7 @@ import cvgutils.Image as cvgim
 import cvgutils.Utils as cvgutil
 import numpy as np
 import cvgutils.Linalg as linalg
+from cvgutils.nn.jaxUtils.unet_model import UNet
 config.update("jax_debug_nans", True)
 # tf.compat.v1.disable_eager_execution()
 # config = tf.compat.v1.ConfigProto()
@@ -52,11 +53,11 @@ parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural ne
 parser.add_argument('--TLIST', default='data/train.txt',type=str, help='Maximum rotation')
 parser.add_argument('--VPATH', default='data/valset/', type=str,help='Maximum rotation')
 parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
-parser.add_argument('--model', type=str, default='UNet_Hardcode',
+parser.add_argument('--model', type=str, default='overfit_unet',
 choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet','UNet_Hardcode'],help='Which model to use')
-parser.add_argument('--logdir', type=str, default='./logger/Flash_No_Flash',help='Direction to store log used as ')
+parser.add_argument('--logdir', type=str, default='./logger/Unet_test',help='Direction to store log used as ')
 parser.add_argument('--logger', type=str, default='tb',choices=['tb','filesystem'],help='Where to dump the logs')
-parser.add_argument('--expname', type=str, default='unvet_overfit_hardcode_depth_1',help='Name of the experiment used as logdir/exp_name')
+parser.add_argument('--expname', type=str, default='unvet_overfit_hardcode',help='Name of the experiment used as logdir/exp_name')
 parser.add_argument('--min_alpha', default=0.02, type=float,help='Maximum rotation')
 parser.add_argument('--max_alpha', default=0.2, type=float,help='Maximum rotation')
 parser.add_argument('--min_read', default=-3., type=float,help='Maximum rotation')
@@ -66,20 +67,14 @@ parser.add_argument('--max_shot', default=-1.3, type=float,help='Maximum rotatio
 
 opts = parser.parse_args()
 # cvgutil.savePickle('./params.pickle',opts)
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 BSZ = opts.batch_size
 IMSZ = opts.image_size
 displacement = opts.displacement
 model = opts.model
-LR = 1e-4
-DROP = (1.1e6, 1.25e6) # Learning rate drop
 MAXITER = 1.5e6
 
-VALFREQ = 2e1
-SAVEFREQ = 5e4
 
-# sess = tf.compat.v1.Session(config=config)
-# sess.run(tf.compat.v1.global_variables_initializer())
 tf.config.set_visible_devices([], device_type='GPU')
 dataset = Dataset(opts.TLIST, opts.VPATH, bsz=BSZ, psz=IMSZ,
                     ngpus=opts.ngpus, nthreads=4 * opts.ngpus,
@@ -163,8 +158,8 @@ elif(opts.model == 'interpolate_straight'):
     init_model = lambda rng, x: jaxutils.StraightCNN().init(rng, x)['params']
     model = lambda params, batch: jaxutils.StraightCNN().apply({'params': params}, batch['net_input']) + batch['noisy']
 elif(opts.model == 'overfit_unet'):
-    init_model = lambda rng, x: jaxutils.UNet(opts.unet_depth,12,3).init(rng, x)['params']
-    model = lambda params, batch: jaxutils.UNet(opts.unet_depth,12,3).apply({'params': params}, batch['net_input'])
+    init_model = lambda rng, x: UNet(12,3,True).init(rng, x)
+    model = lambda params, batch: UNet(12,3,True).apply(params, batch['net_input'],mutable=['batch_stats'])
 elif(opts.model == 'interpolate_unet'):
     init_model = lambda rng, x: jaxutils.UNet(opts.unet_depth,12,3).init(rng, x)['params']
     model = lambda params, batch: jaxutils.UNet(opts.unet_depth,12,3).apply({'params': params}, batch['net_input']) + batch['noisy']
@@ -191,7 +186,7 @@ def predict(im_p,params_p):
 
 @jax.jit
 def loss(params_p,batch_p):
-    predicted = model(params_p,batch_p)
+    predicted = model(params_p,batch_p)[0]
 
     g = tfu.camera_to_rgb_jax(
       predicted/batch_p['alpha'], batch_p['color_matrix'], batch_p['adapt_matrix'])
