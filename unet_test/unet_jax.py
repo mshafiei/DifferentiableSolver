@@ -15,6 +15,7 @@ import cvgutils.Viz as Viz
 import cvgutils.Linalg as linalg
 import argparse
 from flax.core import freeze, unfreeze
+import time
 
 def get_batch(val_iter_p,val_iterator_p,train_iterator_p):
     if(val_iter_p):
@@ -132,16 +133,7 @@ logger = Viz.logger(opts.logdir,opts.logger,'Unet_test',opts.expname,opts.__dict
 
 # batch = cvgutil.loadPickle('./data.pickle')
 
-keys = [jax.random.PRNGKey(100),
-        jax.random.PRNGKey(101),
-        jax.random.PRNGKey(102),
-        jax.random.PRNGKey(103),
-        jax.random.PRNGKey(100),
-        jax.random.PRNGKey(101),
-        jax.random.PRNGKey(102),
-        jax.random.PRNGKey(103),
-        jax.random.PRNGKey(102),
-        jax.random.PRNGKey(103)]
+
 
 
 rng = jax.random.PRNGKey(1)
@@ -149,6 +141,7 @@ rng, init_rng = jax.random.split(rng)
 def next_batch():
     batch = dataset.iterator.next()
     batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
+    keys = [jax.random.PRNGKey(time.time_ns()) + i for i in range(10)]
     return preprocess(batch,keys)
 
 im = next_batch()['net_input']
