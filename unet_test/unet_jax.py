@@ -190,7 +190,7 @@ if(data is not None):
 solver = OptaxSolver(fun=loss, opt=optax.adam(lr),has_aux=True)
 state = solver.init_state(params)
 
-with tqdm.trange(opts.max_iter) as t:
+with tqdm.trange(start_idx,opts.max_iter) as t:
     for i in t:
         val_iter = i % opts.val_freq == 0
         mode = 'val' if val_iter else 'train'
