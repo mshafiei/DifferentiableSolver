@@ -17,21 +17,6 @@ import argparse
 from flax.core import freeze, unfreeze
 import time
 
-def get_batch(val_iter_p,val_iterator_p,train_iterator_p):
-    if(val_iter_p):
-        try:
-            batch = val_iterator_p.next()
-        except StopIteration:
-            val_iterator_p = iter(dataset.val.dataset)
-            batch = val_iterator_p.next()
-    else:
-        try:
-            batch = train_iterator_p.next()
-        except StopIteration:
-            train_iterator_p = iter(dataset.train.dataset)
-            batch = train_iterator_p.next()
-    return batch
-    
 
 # Check for saved weights & optimizer states
 def preprocess(example,keys):
@@ -126,13 +111,34 @@ dataset = Dataset(opts.TLIST, opts.VPATH, bsz=BSZ, psz=IMSZ,
                     min_read=opts.min_read, max_read=opts.max_read, min_shot=opts.min_shot, max_shot=opts.max_shot)
 
 dataset.swap_train()
+def get_batch(val_iter_p,val_iterator_p,train_iterator_p):
+    if(val_iter_p):
+        try:
+            batch = val_iterator_p.next()
+        except StopIteration:
+            val_iterator_p = iter(dataset.val.dataset)
+            batch = val_iterator_p.next()
+    else:
+        try:
+            batch = train_iterator_p.next()
+        except StopIteration:
+            train_iterator_p = iter(dataset.train.dataset)
+            batch = train_iterator_p.next()
+    batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
+    keys = [jax.random.PRNGKey(time.time_ns()) + i for i in range(10)]
+    batch = preprocess(batch,keys)
+    return batch
+    
+dataset_train = iter(dataset.train.dataset)
+dataset_val = iter(dataset.val.dataset)
 
 # fn = '/home/mohammad/Projects/optimizer/baselines/dataset/flash_no_flash/merged/Objects_002_ambient.png'
 # im = cvgim.imread(fn)[None,:448,:448,:]
 logger = Viz.logger(opts.logdir,opts.logger,'Unet_test',opts.expname,opts.__dict__)
 
-# batch = cvgutil.loadPickle('./data.pickle')
-
+# cvgutil.savePickle('./params.pickle',opts)
+# opts = cvgutil.loadPickle('./params.pickle')
+# exit(0)
 
 
 
@@ -186,6 +192,9 @@ state = solver.init_state(params)
 
 with tqdm.trange(opts.max_iter) as t:
     for i in t:
+        val_iter = i % opts.val_freq == 0
+        mode = 'val' if val_iter else 'train'
+        # batch = get_batch(val_iter,dataset_val,dataset_train)
         batch = next_batch()
         params, state = update(params,state,batch['net_input'],batch['ambient'])
         l,_ = loss(params,batch['net_input'],batch['ambient'])
@@ -196,7 +205,7 @@ with tqdm.trange(opts.max_iter) as t:
         # params = {'params':params['params'],'batch_stats':state.aux['batch_stats']}
         t.set_description('loss '+str(np.array(l)))
 
-        if(i % opts.display_freq == 0):
+        if(i % opts.display_freq == 0 or val_iter):
             predicted = model_test(params, batch['net_input'])
             g = tfu.camera_to_rgb_jax(
             predicted, batch['color_matrix'], batch['adapt_matrix'])
@@ -211,10 +220,10 @@ with tqdm.trange(opts.max_iter) as t:
                 batch['color_matrix'], batch['adapt_matrix'])
             psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(g),ambient)
             imshow = jnp.clip(jnp.concatenate((ambient,g,noisy,flash),axis=-2),0,1)
-            logger.addImage(imshow[0],'image')
-            logger.addScalar(psnr,'psnr')
+            logger.addImage(imshow[0],'image',mode=mode)
+            logger.addScalar(psnr,'psnr',mode=mode)
         if(i % opts.save_param_freq == 0):
             logger.save_params(params,batch,i)
 
-        logger.addScalar(l,'loss')
+        logger.addScalar(l,'loss',mode=mode)
         logger.takeStep()
