@@ -23,7 +23,7 @@ def parse_arguments(parser):
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
     parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
     parser.add_argument('--save_param_freq', default=100,type=int, help='Maximum rotation')
-    parser.add_argument('--max_iter', default=1000000, type=int,help='Maximum iteration count')
+    parser.add_argument('--max_iter', default=100000000, type=int,help='Maximum iteration count')
     parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural net')
     
     return parser
