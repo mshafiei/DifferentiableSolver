@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser()
 parser = parse_arguments(parser)
 parser = Viz.logger.parse_arguments(parser)
 parser = Dataset.parse_arguments(parser)
+parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 tf.config.set_visible_devices([], device_type='GPU')
@@ -47,14 +48,14 @@ n_classes = 3
 bilinear = True
 
 def init_model(rng, x,test=False,group_norm=True):
-    return UNet(n_channels,n_classes,bilinear,test,group_norm).init(rng, x)
+    return UNet(n_channels,n_classes,bilinear,test,group_norm,'relu').init(rng, x)
 def model_test(params, im,group_norm=True):
-    return UNet(n_channels,n_classes,bilinear,True,group_norm).apply(params, im)
+    return UNet(n_channels,n_classes,bilinear,True,group_norm,'relu').apply(params, im)
 def model_train(params, im,group_norm=True):
     if(group_norm):
-        return UNet(n_channels,n_classes,bilinear,False,group_norm).apply(params, im,mutable=['batch_stats'])
+        return UNet(n_channels,n_classes,bilinear,False,group_norm,'relu').apply(params, im,mutable=['batch_stats'])
     else:
-        return UNet(n_channels,n_classes,bilinear,False,group_norm).apply(params, im)
+        return UNet(n_channels,n_classes,bilinear,False,group_norm,'relu').apply(params, im)
 
 
 rng = jax.random.PRNGKey(1)
