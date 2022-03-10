@@ -115,6 +115,10 @@ def camera_to_rgb(imgs, color_matrix, adapt_matrix):
     rgb = tf.transpose(rgb, [0, 2, 1])
     rgb = tf.reshape(rgb, imsp)
     return rgb
+
+def camera_to_rgb_batch(im,batch):
+    return camera_to_rgb_jax(
+      im, batch['color_matrix'], batch['adapt_matrix'])
 def camera_to_rgb_jax(imgs, color_matrix, adapt_matrix):
     b, c = imgs.shape[0], imgs.shape[-1]
     imsp = imgs.shape

@@ -5,7 +5,11 @@ import numpy as np
 import tensorflow as tf
 from six.moves import cPickle as pkl
 from deepfnf_utils.tf_spatial_transformer import transformer
-
+import deepfnf_utils.utils as ut
+import deepfnf_utils.tf_utils as tfu
+import time
+import jax
+import jax.numpy as jnp
 with open('./data/exifs.pkl', 'rb') as f:
     COLOR_MAP_DATA = pkl.load(f)
 
@@ -133,14 +137,76 @@ def valset_generator(data_path):
 
         yield example
 
+# Check for saved weights & optimizer states
+def preprocess(example,keys):
+    
+
+    key1, key2, key3, key4, key5, key6, key7, key8, key9, key10= keys
+
+    # # for i in range(opts.ngpus):
+    #     # with tf.device('/gpu:%d' % i):
+    alpha = example['alpha'][:, None, None, None]
+    dimmed_ambient, _ = tfu.dim_image_jax(
+        example['ambient'], key1,alpha=alpha)
+    dimmed_warped_ambient, _ = tfu.dim_image_jax(
+        example['warped_ambient'],key2, alpha=alpha)
+
+    # Make the flash brighter by increasing the brightness of the
+    # flash-only image.
+    flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+    warped_flash = example['warped_flash_only'] * \
+        ut.FLASH_STRENGTH + dimmed_warped_ambient
+
+    sig_read = example['sig_read'][:, None, None, None]
+    sig_shot = example['sig_shot'][:, None, None, None]
+    noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
+        dimmed_ambient,key3,key4,key5,key6, sig_read=sig_read, sig_shot=sig_shot)
+    noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
+        warped_flash,key7,key8,key9,key10, sig_read=sig_read, sig_shot=sig_shot)
+
+    # noisy_ambient = jnp.zeros_like(example['ambient'])
+    # noisy_flash = jnp.zeros_like(example['ambient'])
+    # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+    # sig_read = jnp.zeros((*example['ambient'].shape[:-1],6))
+    # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+
+    noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
+    noise_std = tfu.estimate_std_jax(noisy, sig_read, sig_shot)
+    net_input = jnp.concatenate([noisy,noise_std], axis=-1)
+    
+    output = {
+        'alpha':alpha,
+        'ambient':example['ambient'],
+        'flash':noisy_flash,
+        'noisy':noisy_ambient,
+        'net_input':net_input,
+        'adapt_matrix':example['adapt_matrix'],
+        'color_matrix':example['color_matrix']
+    }
+
+    return output
+
 
 class Dataset:
-    def __init__(
-            self, train_list, val_path,
-            bsz=32, psz=512, jitter=2,
-            min_scale=0.98, max_scale=1.02, theta=np.deg2rad(0.5),
-            ngpus=1, nthreads=4, onfly_val=False,min_alpha=0.02, max_alpha=0.2,
-        min_read=-3., max_read=-2, min_shot=-2., max_shot=-1.3):
+    def __init__(self, opts, onfly_val=False):
+
+        train_list = opts.TLIST
+        val_path = opts.VPATH
+        bsz=opts.batch_size
+        psz=opts.image_size
+        ngpus=opts.ngpus
+        nthreads=4 * opts.ngpus
+        jitter=opts.displacement
+        min_scale=opts.min_scale
+        max_scale=opts.max_scale
+        theta=opts.max_rotate
+        min_alpha=opts.min_alpha
+        max_alpha=opts.max_alpha
+        min_read=opts.min_read
+        max_read=opts.max_read
+        min_shot=opts.min_shot
+        max_shot=opts.max_shot
+
         self.train = TrainSet(
             train_list, bsz, psz, jitter,
             min_scale, max_scale, theta, ngpus, nthreads,min_alpha, max_alpha,
@@ -153,23 +219,45 @@ class Dataset:
         else:
             self.val = ValSet(val_path, bsz, ngpus)
 
-        self.iterator = iter(self.train.iterator)
+        self.train_iter = iter(self.train.dataset)
+        self.val_iter = iter(self.val.dataset)
 
-        # # One batch for each gpu
-        # self.batches = []
-        # for i in range(ngpus):
-        #     example = self.iterator.get_next()
-        #     for name, data in example.items():
-        #         if name in ['ambient', 'warped_ambient', 'flash_only', 'warped_flash_only']:
-        #             data.set_shape([bsz, psz, psz, 3])
-        #     self.batches.append(example)
+    def next_batch(self,val_iter_p):
+        if(val_iter_p):
+            try:
+                batch = self.val_iter.next()
+            except StopIteration:
+                self.val_iter = iter(self.val.dataset)
+                batch = self.val_iter.next()
+        else:
+            try:
+                batch = self.train_iter.next()
+            except StopIteration:
+                self.train_iter = iter(self.train.dataset)
+                batch = self.train_iter.next()
+        batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
+        keys = [jax.random.PRNGKey(time.time_ns()) + i for i in range(10)]
+        return preprocess(batch,keys)
 
+    @staticmethod
+    def parse_arguments(parser):
+        parser.add_argument('--ngpus', type=int, default=1, help='use how many gpus')
+        parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
+        parser.add_argument('--TLIST', default='data/train.txt',type=str, help='Maximum rotation')
+        parser.add_argument('--VPATH', default='data/valset/', type=str,help='Maximum rotation')
+        parser.add_argument('--batch_size', default=1, type=int,help='Image count in a batch')
+        parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
+        parser.add_argument('--max_scale', default=1.02,type=float, help='Random shift in pixels')
+        parser.add_argument('--image_size', default=448,type=int, help='Image size')
+        parser.add_argument('--max_rotate', default=np.deg2rad(0.5),type=float, help='Maximum rotation')
+        parser.add_argument('--min_alpha', default=0.02, type=float,help='Maximum rotation')
+        parser.add_argument('--max_alpha', default=0.2, type=float,help='Maximum rotation')
+        parser.add_argument('--min_read', default=-3., type=float,help='Maximum rotation')
+        parser.add_argument('--max_read', default=-2, type=float,help='Maximum rotation')
+        parser.add_argument('--min_shot', default=-2., type=float,help='Maximum rotation')
+        parser.add_argument('--max_shot', default=-1.3, type=float,help='Maximum rotation')
+        return parser
 
-    def swap_train(self):
-        self.iterator = iter(self.train.dataset)
-
-    def swap_val(self):
-        self.iterator = iter(self.val.dataset)
 
 class TrainSet:
     def __init__(
