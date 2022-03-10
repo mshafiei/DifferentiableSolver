@@ -76,7 +76,8 @@ with tqdm.trange(opts.max_iter) as t:
     for i in t:
         val_iter = i+1 % opts.val_freq == 0
         mode = 'val' if val_iter else 'train'
-        
+        batch = dataset.next_batch(val_iter)
+
         params, state = update(params,state,batch)
         l,_ = loss(params,batch)
         t.set_description('loss '+str(np.array(l)))
