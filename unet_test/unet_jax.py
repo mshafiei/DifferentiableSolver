@@ -32,30 +32,27 @@ parser = Dataset.parse_arguments(parser)
 parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
+
+# cvgutil.savePickle('./params.pickle',opts)
+# exit(0)
+# opts = cvgutil.loadPickle('./params.pickle')
+
+
 tf.config.set_visible_devices([], device_type='GPU')
 dataset = Dataset(opts)
 logger = Viz.logger(opts,opts.__dict__)
 
-# cvgutil.savePickle('./params.pickle',opts)
-# opts = cvgutil.loadPickle('./params.pickle')
-# exit(0)
-
-
-
 im = dataset.next_batch(False)['net_input']
-n_channels = 12
-n_classes = 3
-bilinear = True
 
 def init_model(rng, x,test=False,group_norm=True):
-    return UNet(n_channels,n_classes,bilinear,test,group_norm,'relu').init(rng, x)
+    return UNet(opts.in_features,opts.out_features,opts.bilinear,test,group_norm,'relu').init(rng, x)
 def model_test(params, im,group_norm=True):
-    return UNet(n_channels,n_classes,bilinear,True,group_norm,'relu').apply(params, im)
+    return UNet(opts.in_features,opts.out_features,opts.bilinear,True,group_norm,'relu').apply(params, im)
 def model_train(params, im,group_norm=True):
     if(group_norm):
-        return UNet(n_channels,n_classes,bilinear,False,group_norm,'relu').apply(params, im,mutable=['batch_stats'])
+        return UNet(opts.in_features,opts.out_features,opts.bilinear,False,group_norm,'relu').apply(params, im,mutable=['batch_stats'])
     else:
-        return UNet(n_channels,n_classes,bilinear,False,group_norm,'relu').apply(params, im)
+        return UNet(opts.in_features,opts.out_features,opts.bilinear,False,group_norm,'relu').apply(params, im)
 
 
 rng = jax.random.PRNGKey(1)
@@ -93,12 +90,12 @@ with tqdm.trange(start_idx,opts.max_iter) as t:
         
         batch = dataset.next_batch(val_iter)
 
-        params, state = update(params,state,batch['net_input'],batch['ambient'])
-        l,_ = loss(params,batch['net_input'],batch['ambient'])
+        params, state = update(params,state,batch['noisy'],batch['ambient'])
+        l,_ = loss(params,batch['noisy'],batch['ambient'])
         t.set_description('loss '+str(np.array(l)))
 
         if(i % opts.display_freq == 0 or val_iter):
-            predicted = model_test(params, batch['net_input'])
+            predicted = model_test(params, batch['noisy'])
             g = camera_to_rgb(predicted, batch)
             ambient = camera_to_rgb(batch['ambient'], batch)
             flash = camera_to_rgb(batch['flash'], batch)
