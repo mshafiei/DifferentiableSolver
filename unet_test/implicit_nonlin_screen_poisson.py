@@ -38,7 +38,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-opts = cvgutil.loadPickle('./params.pickle')
+# opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
