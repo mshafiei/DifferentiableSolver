@@ -86,10 +86,12 @@ with tqdm.trange(opts.max_iter) as t:
             l1 = tfu.camera_to_rgb_batch(l1/batch['alpha'], batch)
             l2 = tfu.camera_to_rgb_batch(l2/batch['alpha'], batch)
             l3 = tfu.camera_to_rgb_batch(l3/batch['alpha'], batch)
+            noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
+            flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
             g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
             ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
             psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(g),ambient)
-            imshow = jnp.clip(jnp.concatenate((g,ambient,l1,l2,l3),axis=-2),0,1)
+            imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,l1,l2,l3),axis=-2),0,1)
             logger.addImage(imshow[0],'image',mode=mode)
             logger.addScalar(psnr,'psnr',mode=mode)
         if(i % opts.save_param_freq == 0):
