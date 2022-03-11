@@ -71,8 +71,14 @@ def update(params_p,state_p,batch_p):
 data = logger.load_params()
 solver = OptaxSolver(fun=loss, opt=optax.adam(opts.lr),has_aux=True)
 state = solver.init_state(params)
+start_idx=0
+if(data is not None):
+    # state = data['state']
+    batch = data['state']
+    params = data['params']
+    start_idx = data['idx']
 
-with tqdm.trange(opts.max_iter) as t:
+with tqdm.trange(start_idx, opts.max_iter) as t:
     for i in t:
         val_iter = (i+1) % opts.val_freq == 0
         mode = 'val' if val_iter else 'train'
