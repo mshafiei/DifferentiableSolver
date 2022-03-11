@@ -39,7 +39,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -71,6 +71,14 @@ def loss(params,batch):
     return ((batch['ambient'] - pred/batch['alpha']) ** 2).sum(), aux
 
 @jax.jit
+def metrics(params,batch):
+    pred, _ = apply(params,batch)
+    mse = ((batch['ambient'] - pred/batch['alpha']) ** 2).mean()
+    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred/batch['alpha']),batch['ambient'])
+    return {'mse':mse,'psnr':psnr}
+
+
+@jax.jit
 def update(params_p,state_p,batch_p):
     params_p, state_p = solver.update(params_p, state_p,batch=batch_p)
     return params_p, state_p
@@ -89,20 +97,26 @@ if(data is not None):
 start_time = time.time()
 update(params,state,batch)
 apply(params,batch)
-loss(params,batch)
+metrics(params,batch)
+visualize_model(params,batch)
 end_time = time.time()
 print('compile time ',end_time - start_time)
 
 with tqdm.trange(start_idx, opts.max_iter) as t:
     for i in t:
+        #train_display and validation are mutually exclusive
         val_iter = (i+1) % opts.val_freq == 0
+        train_display = i % opts.display_freq == 0
+
         mode = 'val' if val_iter else 'train'
         batch = dataset.next_batch(val_iter)
 
-        params, state = update(params,state,batch)
-        l,_ = loss(params,batch)
-        t.set_description('loss '+str(np.array(l)))
-        if(i % opts.display_freq == 0 or val_iter):
+        if(not val_iter):
+            params, state = update(params,state,batch)
+        mtrcs = metrics(params,batch)
+        mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
+        t.set_description(mtrcs_str)
+        if(train_display or val_iter):
             predicted = apply(params,batch)
             imgs = visualize_model(params,batch)
             imgs = jnp.concatenate(imgs,axis=-2)
@@ -111,12 +125,10 @@ with tqdm.trange(start_idx, opts.max_iter) as t:
             flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
             g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
             ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
-            psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(g),ambient)
             imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,imgs),axis=-2),0,1)
             logger.addImage(imshow[0],'image',mode=mode)
-            logger.addScalar(psnr,'psnr',mode=mode)
         if(i % opts.save_param_freq == 0):
             logger.save_params(params,batch,i)
 
-        logger.addScalar(l,'loss',mode=mode)
+        logger.addMetrics(mtrcs,mode=mode)
         logger.takeStep()
