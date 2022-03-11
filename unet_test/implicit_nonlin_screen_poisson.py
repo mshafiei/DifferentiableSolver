@@ -54,7 +54,7 @@ elif(opts.model == 'implicit_poisson_model'):
 else:
     print('Cannot recognize model')
     exit(0)
-    
+
 rng = jax.random.PRNGKey(2)
 rng, init_rng = jax.random.split(rng)
 params = diffable_solver.init(rng,batch)
@@ -95,16 +95,15 @@ with tqdm.trange(start_idx, opts.max_iter) as t:
         t.set_description('loss '+str(np.array(l)))
         if(i % opts.display_freq == 0 or val_iter):
             predicted = apply(params,batch)
-            l1,l2,l3 = visualize_model(params,batch)
-            l1 = tfu.camera_to_rgb_batch(l1/batch['alpha'], batch)
-            l2 = tfu.camera_to_rgb_batch(l2/batch['alpha'], batch)
-            l3 = tfu.camera_to_rgb_batch(l3/batch['alpha'], batch)
+            imgs = visualize_model(params,batch)
+            imgs = jnp.concatenate(imgs,axis=-2)
+            imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
             noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
             flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
             g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
             ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
             psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(g),ambient)
-            imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,l1,l2,l3),axis=-2),0,1)
+            imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,imgs),axis=-2),0,1)
             logger.addImage(imshow[0],'image',mode=mode)
             logger.addScalar(psnr,'psnr',mode=mode)
         if(i % opts.save_param_freq == 0):
