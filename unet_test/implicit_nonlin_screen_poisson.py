@@ -15,6 +15,7 @@ import argparse
 from jaxopt import implicit_diff, linear_solve
 from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model, implicit_poisson_model
 from flax import linen as nn
+import time
 
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
@@ -83,6 +84,14 @@ if(data is not None):
     batch = data['state']
     params = data['params']
     start_idx = data['idx']
+
+#compile
+start_time = time.time()
+update(params,state,batch)
+apply(params,batch)
+loss(params,batch)
+end_time = time.time()
+print('compile time ',end_time - start_time)
 
 with tqdm.trange(start_idx, opts.max_iter) as t:
     for i in t:
