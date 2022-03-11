@@ -13,12 +13,12 @@ import cvgutils.Viz as Viz
 import cvgutils.Linalg as linalg
 import argparse
 from jaxopt import implicit_diff, linear_solve
-from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model
+from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model, implicit_poisson_model
 from flax import linen as nn
 
 def parse_arguments(parser):
-    parser.add_argument('--model', type=str, default='overfit_unet',
-    choices=['overfit_straight','interpolate_straight','overfit_unet','interpolate_unet','UNet_Hardcode'],help='Which model to use')
+    parser.add_argument('--model', type=str, default='implicit_sanity_model',
+    choices=['implicit_sanity_model','implicit_poisson_model'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
     parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
@@ -47,8 +47,14 @@ logger = Viz.logger(opts,opts.__dict__)
 
 batch = dataset.next_batch(False)
 im = batch['net_input']
-
-diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+if(opts.model == 'implicit_sanity_model'):
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+elif(opts.model == 'implicit_poisson_model'):
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+else:
+    print('Cannot recognize model')
+    exit(0)
+    
 rng = jax.random.PRNGKey(2)
 rng, init_rng = jax.random.split(rng)
 params = diffable_solver.init(rng,batch)
