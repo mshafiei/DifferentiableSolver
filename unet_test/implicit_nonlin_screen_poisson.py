@@ -101,34 +101,38 @@ metrics(params,batch)
 visualize_model(params,batch)
 end_time = time.time()
 print('compile time ',end_time - start_time)
+def eval_visualize(params,batch,logger,mode,display,save_params):
+    mtrcs = metrics(params,batch)
+    mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
+    t.set_description(mtrcs_str)
+    if(display):
+        predicted = apply(params,batch)
+        imgs = visualize_model(params,batch)
+        imgs = jnp.concatenate(imgs,axis=-2)
+        imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
+        noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
+        flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
+        g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
+        ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
+        imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,imgs),axis=-2),0,1)
+        logger.addImage(imshow[0],'image',mode=mode)
+    if(save_params):
+        logger.save_params(params,batch,i)
 
+    logger.addMetrics(mtrcs,mode=mode)
+    
+    
 with tqdm.trange(start_idx, opts.max_iter) as t:
     for i in t:
         #train_display and validation are mutually exclusive
-        val_iter = (i+1) % opts.val_freq == 0
+        val_iter = i % opts.val_freq == 0
         train_display = i % opts.display_freq == 0
+        save_params = i % opts.save_param_freq == 0
+        if(val_iter):
+            batch = dataset.next_batch(True)
+            eval_visualize(params,batch,logger,'val',True,False)
 
-        mode = 'val' if val_iter else 'train'
-        batch = dataset.next_batch(val_iter)
-
-        if(not val_iter):
-            params, state = update(params,state,batch)
-        mtrcs = metrics(params,batch)
-        mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
-        t.set_description(mtrcs_str)
-        if(train_display or val_iter):
-            predicted = apply(params,batch)
-            imgs = visualize_model(params,batch)
-            imgs = jnp.concatenate(imgs,axis=-2)
-            imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
-            noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
-            flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
-            g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
-            ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
-            imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,imgs),axis=-2),0,1)
-            logger.addImage(imshow[0],'image',mode=mode)
-        if(i % opts.save_param_freq == 0):
-            logger.save_params(params,batch,i)
-
-        logger.addMetrics(mtrcs,mode=mode)
+        batch = dataset.next_batch(False)
+        params, state = update(params,state,batch)
+        eval_visualize(params,batch,logger,'train',train_display,save_params)
         logger.takeStep()
