@@ -170,12 +170,44 @@ class implicit_sanity_model(Quad_model):
         return out * avg_weight
     
     def visualize(self,primal_param,inpt):
-
-
         r1 =  primal_param - inpt['noisy']
         g = self.unet(inpt['net_input'])
         r2 = self.alpha * (primal_param - g)
         return r1, g, r2
+
+class implicit_poisson_model(Quad_model):
+    unet: unet_model.UNet
+    def setup(self):
+        self.alpha = self.param('alpha',
+            implicit_poisson_model.init_hyper,
+            None,
+            jnp.array)
+
+    @staticmethod
+    def init_primal(batch):
+        return batch['noisy']
+
+    @staticmethod
+    def init_hyper(key,val,dtype):
+        rand = random.uniform(key)
+        return jnp.array(rand)
+
+    @nn.compact
+    def __call__(self,primal_param,inpt):
+        avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
+        r1 =  primal_param - inpt['noisy']
+        g = self.unet(inpt['net_input'])
+        r2 = self.alpha * (utils.dx(primal_param) - g[...,:3])
+        r3 = self.alpha * (utils.dy(primal_param) - g[...,3:])
+        out = jnp.concatenate(( r1.reshape(-1), r2.reshape(-1), r3.reshape(-1)),axis=0)
+        return out * avg_weight
+    
+    def visualize(self,primal_param,inpt):
+        r1 =  primal_param - inpt['noisy']
+        g = self.unet(inpt['net_input'])
+        r2 = self.alpha * (utils.dx(primal_param) - g[...,:3])
+        r3 = self.alpha * (utils.dy(primal_param) - g[...,3:])
+        return r1, g[...,:3], g[...,3:], r2, r3
         
 
 class screen_poisson(Quad_model):
