@@ -173,7 +173,10 @@ class implicit_sanity_model(Quad_model):
         r1 =  primal_param - inpt['noisy']
         g = self.unet(inpt['net_input'])
         r2 = self.alpha * (primal_param - g)
-        return r1, g, r2
+        imgs = [r1, g, r2]
+        return imgs
+    def labels(self):
+        return [r'$Fidelity~res~(I-I_{noisy})$', r'$Unet~output$', r'$Regularizer~res~(\lambda(\partial_x I - g))$']
 
 class implicit_poisson_model(Quad_model):
     unet: unet_model.UNet
@@ -207,8 +210,12 @@ class implicit_poisson_model(Quad_model):
         g = self.unet(inpt['net_input'])
         r2 = self.alpha * (utils.dx(primal_param) - g[...,:3])
         r3 = self.alpha * (utils.dy(primal_param) - g[...,3:])
-        return r1, g[...,:3], g[...,3:], r2, r3
-        
+        imgs = [r1, g[...,:3], g[...,3:], r2, r3]
+        return imgs
+    
+    def labels(self):
+        return [r'$Fidelity~res~(I-I_{noisy})$', r'$Unet~output~(g[1:3])$', r'$Unet~output~(g[3:6])$', r'$x~regularizer~res~(\lambda(\partial_x I - g[1:3]))$', r'$y~regularizer~res~(\lambda(\partial_y I - g[3:6]))$']
+
 
 class screen_poisson(Quad_model):
     @staticmethod

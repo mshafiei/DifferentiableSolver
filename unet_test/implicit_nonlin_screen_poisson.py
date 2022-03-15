@@ -15,6 +15,7 @@ import argparse
 from jaxopt import implicit_diff, linear_solve
 from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model, implicit_poisson_model
 from flax import linen as nn
+import deepfnf_utils.utils as ut
 import time
 
 def parse_arguments(parser):
@@ -26,6 +27,7 @@ def parse_arguments(parser):
     parser.add_argument('--save_param_freq', default=100,type=int, help='Maximum rotation')
     parser.add_argument('--max_iter', default=100000000, type=int,help='Maximum iteration count')
     parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural net')
+    parser.add_argument('--mode', default='train', type=str,choices=['train','test'],help='Should we train or test the model?')
     
     return parser
 
@@ -39,14 +41,14 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
 dataset = Dataset(opts)
 logger = Viz.logger(opts,opts.__dict__)
 
-batch = dataset.next_batch(False)
+batch = dataset.next_batch(False,0)
 im = batch['net_input']
 if(opts.model == 'implicit_sanity_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
@@ -71,10 +73,11 @@ def loss(params,batch):
     return ((batch['ambient'] - pred/batch['alpha']) ** 2).sum(), aux
 
 @jax.jit
-def metrics(params,batch):
-    pred, _ = apply(params,batch)
-    mse = ((batch['ambient'] - pred/batch['alpha']) ** 2).mean()
-    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred/batch['alpha']),batch['ambient'])
+def metrics(pred,gt):
+    pred = jnp.clip(pred,0,1)
+    ambient = jnp.clip(gt,0,1)
+    mse = ((ambient - pred) ** 2).mean()
+    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred),ambient)
     return {'mse':mse,'psnr':psnr}
 
 
@@ -93,46 +96,97 @@ if(data is not None):
     params = data['params']
     start_idx = data['idx']
 
-#compile
-start_time = time.time()
-update(params,state,batch)
-apply(params,batch)
-metrics(params,batch)
-visualize_model(params,batch)
-end_time = time.time()
-print('compile time ',end_time - start_time)
+
 def eval_visualize(params,batch,logger,mode,display,save_params):
-    mtrcs = metrics(params,batch)
+    mtrcs = metrics(pred/batch['alpha'],batch['ambient'])
+    mtrcs_noisy = metrics(batch['noisy']/batch['alpha'],batch['ambient'])
     mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
     t.set_description(mtrcs_str)
     if(display):
         predicted = apply(params,batch)
         imgs = visualize_model(params,batch)
-        imgs = jnp.concatenate(imgs,axis=-2)
-        imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
-        noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
-        flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
-        g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
-        ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
-        imshow = jnp.clip(jnp.concatenate((g,ambient,noisy,flash,imgs),axis=-2),0,1)
-        logger.addImage(imshow[0],'image',mode=mode)
+        labels = diffable_solver.quad_model.labels()
+        imgs = [i/batch['alpha'] for i in imgs]
+        imgs = [predicted[0]/batch['alpha'],batch['ambient'],batch['noisy']/batch['alpha'],batch['flash'],*imgs]
+        trnsfrm = lambda x: tfu.camera_to_rgb_batch(x,batch)
+        labels = [r'$Prediction~(I),~PSNR:~%.3f$'%mtrcs['psnr'],r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f$'%mtrcs_noisy['psnr'],r'$Flash~input~(I_{flash})$',*labels]
+        logger.addImage(imgs,labels,'image',trnsfrm=trnsfrm,dim_type='BHWC',mode=mode)
+        # imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
+        # noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
+        # flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
+        # g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
+        # ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
+        # imshow = jnp.clip(jnp.concatenate((),axis=-2),0,1)
+        # logger.addImage([g,ambient,noisy,flash,imgs],['prediction','Ground Truth','Noisy input','Flash input',imgs],'image',mode=mode)
     if(save_params):
         logger.save_params(params,batch,i)
 
     logger.addMetrics(mtrcs,mode=mode)
     
-    
-with tqdm.trange(start_idx, opts.max_iter) as t:
-    for i in t:
-        #train_display and validation are mutually exclusive
-        val_iter = i % opts.val_freq == 0
-        train_display = i % opts.display_freq == 0
-        save_params = i % opts.save_param_freq == 0
-        if(val_iter):
-            batch = dataset.next_batch(True)
-            eval_visualize(params,batch,logger,'val',True,False)
 
-        batch = dataset.next_batch(False)
-        params, state = update(params,state,batch)
-        eval_visualize(params,batch,logger,'train',train_display,save_params)
-        logger.takeStep()
+start_time = time.time()
+pred,_ = apply(params,batch)
+metrics(pred/batch['alpha'],batch['noisy'])
+visualize_model(params,batch)
+if(opts.mode == 'train'):
+    #compile
+    update(params,state,batch)
+    end_time = time.time()
+    print('compile time ',end_time - start_time)
+    with tqdm.trange(start_idx, opts.max_iter) as t:
+        for i in t:
+            #train_display and validation are mutually exclusive
+            val_iter = i % opts.val_freq == 0
+            train_display = i % opts.display_freq == 0
+            save_params = i % opts.save_param_freq == 0
+            if(val_iter):
+                batch = dataset.next_batch(True,i)
+                eval_visualize(params,batch,logger,'val',True,False)
+
+            batch = dataset.next_batch(False,i)
+            params, state = update(params,state,batch)
+            eval_visualize(params,batch,logger,'train',train_display,save_params)
+            logger.takeStep()
+elif(opts.mode == 'test'):
+    end_time = time.time()
+    print('compile time ',end_time - start_time)
+    for k in range(4):
+        mtrcs = []
+        for c in range(128):
+            data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
+
+            alpha = data['alpha'][None, None, None, None]
+            ambient = data['ambient']
+            dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'], alpha=alpha)
+            dimmed_warped_ambient, _ = tfu.dim_image_jax(
+                data['warped_ambient'], alpha=alpha)
+
+            # Make the flash brighter by increasing the brightness of the
+            # flash-only image.
+            flash = data['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+            warped_flash = data['warped_flash_only'] * \
+                ut.FLASH_STRENGTH + dimmed_warped_ambient
+
+            noisy_ambient = data['noisy_ambient']
+            noisy_flash = data['noisy_warped_flash']
+
+            noisy = tf.concat([noisy_ambient, noisy_flash], axis=-1)
+            noise_std = tfu.estimate_std(
+                noisy, data['sig_read'], data['sig_shot'])
+            net_input = tf.concat([noisy, noise_std], axis=-1)
+
+            batch = {'net_input':net_input,'noisy':noisy,'noise_std':noise_std,'flash':flash}
+            denoise = apply(params,batch)
+            eval_visualize(params,batch,logger,'test',True,False)
+            logger.takeStep()
+
+            mtrcs.append(metrics(params,batch))
+        
+        psnr = np.mean([i['psnr'] for i in mtrcs])
+        mse = np.mean([i['mse'] for i in mtrcs])
+
+        print('\nLevel %d' % (4 - k) +
+            ': PSNR: %.3f, SSIM: %.4f' % (psnr,mse))
+else:
+    print('Unknown mode ',opts.mode)
+    exit(0)

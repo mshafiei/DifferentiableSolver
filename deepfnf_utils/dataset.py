@@ -222,7 +222,7 @@ class Dataset:
         self.train_iter = iter(self.train.dataset)
         self.val_iter = iter(self.val.dataset)
 
-    def next_batch(self,val_iter_p):
+    def next_batch(self,val_iter_p,iter_c):
         if(val_iter_p):
             try:
                 batch = self.val_iter.next()
@@ -236,7 +236,7 @@ class Dataset:
                 self.train_iter = iter(self.train.dataset)
                 batch = self.train_iter.next()
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
-        keys = [jax.random.PRNGKey(time.time_ns()) + i for i in range(10)]
+        keys = [jax.random.PRNGKey(iter_c*10 + i) for i in range(10)]
         return preprocess(batch,keys)
 
     @staticmethod
@@ -245,6 +245,7 @@ class Dataset:
         parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
         parser.add_argument('--TLIST', default='data/train.txt',type=str, help='Maximum rotation')
         parser.add_argument('--VPATH', default='data/valset/', type=str,help='Maximum rotation')
+        parser.add_argument('--TESTPATH', default='data/testset/', type=str,help='Maximum rotation')
         parser.add_argument('--batch_size', default=1, type=int,help='Image count in a batch')
         parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
         parser.add_argument('--max_scale', default=1.02,type=float, help='Random shift in pixels')
