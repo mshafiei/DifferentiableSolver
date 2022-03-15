@@ -3,7 +3,7 @@ cp /root/ssh_mount/id_rsa* /root/.ssh/
 chmod 400 ~/.ssh/id_rsa
 pip3 install imageio
 sudo apt-get -y install exiftool
-pip3 install PyExifTool piq lpips
+pip3 install PyExifTool piq lpips plotly==5.6.0
 python3 -c """import imageio
 imageio.plugins.freeimage.download()
 """
