@@ -75,9 +75,9 @@ def loss(params,batch):
 @jax.jit
 def metrics(pred,gt):
     pred = jnp.clip(pred,0,1)
-    ambient = jnp.clip(gt,0,1)
-    mse = ((ambient - pred) ** 2).mean()
-    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred),ambient)
+    gt = jnp.clip(gt,0,1)
+    mse = ((gt - pred) ** 2).mean([1,2,3])
+    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred),gt)
     return {'mse':mse,'psnr':psnr}
 
 
@@ -98,6 +98,7 @@ if(data is not None):
 
 
 def eval_visualize(params,batch,logger,mode,display,save_params):
+    pred,_ = apply(params,batch)
     mtrcs = metrics(pred/batch['alpha'],batch['ambient'])
     mtrcs_noisy = metrics(batch['noisy']/batch['alpha'],batch['ambient'])
     mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
@@ -126,7 +127,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params):
 
 start_time = time.time()
 pred,_ = apply(params,batch)
-metrics(pred/batch['alpha'],batch['noisy'])
+metrics(pred/batch['alpha'],batch['ambient'])
 visualize_model(params,batch)
 if(opts.mode == 'train'):
     #compile
