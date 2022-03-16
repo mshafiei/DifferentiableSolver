@@ -164,7 +164,7 @@ def get_psnr_jax(pred, gt):
     pred = jnp.clip(pred, 0., 1.)
     gt = jnp.clip(gt, 0., 1.)
     mse = jnp.mean((pred - gt)**2.0, axis=[1, 2, 3])
-    psnr = jnp.mean(-10. * jnp.log(mse) / jnp.log(10.))
+    psnr = jnp.mean(-10. * jnp.log10(mse) / jnp.log10(10.))
     return psnr
 
 

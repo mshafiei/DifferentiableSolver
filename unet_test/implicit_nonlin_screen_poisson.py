@@ -41,7 +41,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -70,7 +70,10 @@ apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
 @jax.jit
 def loss(params,batch):
     pred, aux = apply(params,batch)
-    return ((batch['ambient'] - pred/batch['alpha']) ** 2).sum(), aux
+    pred = jnp.clip(tfu.camera_to_rgb_batch(pred/batch['alpha'],batch),0,1)
+    ambient = jnp.clip(tfu.camera_to_rgb_batch(batch['ambient'],batch),0,1)
+
+    return ((ambient - pred) ** 2).sum(), aux
 
 @jax.jit
 def metrics(pred,gt):
@@ -109,8 +112,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     if(display):
         imgs = visualize_model(params,batch)
         labels = diffable_solver.quad_model.labels()
-        imgs = [tfu.camera_to_rgb_batch(i/batch['alpha']) for i in imgs]
-        imgs = [pred,batch['ambient'],noisy,tfu.camera_to_rgb_batch(batch['flash']),*imgs]
+        imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
+        imgs = [pred,batch['ambient'],noisy,tfu.camera_to_rgb_batch(batch['flash'],batch),*imgs]
         labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
 
