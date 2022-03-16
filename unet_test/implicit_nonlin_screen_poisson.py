@@ -41,7 +41,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -77,7 +77,7 @@ def metrics(pred,gt):
     pred = jnp.clip(pred,0,1)
     gt = jnp.clip(gt,0,1)
     mse = ((gt - pred) ** 2).mean([1,2,3])
-    psnr = linalg.get_psnr_jax(jax.lax.stop_gradient(pred),gt)
+    psnr = -10. * jnp.log10(mse) / jnp.log10(10.)
     return {'mse':mse,'psnr':psnr}
 
 
@@ -97,28 +97,23 @@ if(data is not None):
     start_idx = data['idx']
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params):
+def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     pred,_ = apply(params,batch)
-    mtrcs = metrics(pred/batch['alpha'],batch['ambient'])
-    mtrcs_noisy = metrics(batch['noisy']/batch['alpha'],batch['ambient'])
-    mtrcs_str = ''.join(['%s:%f' % (k,np.array(v)) for k,v in mtrcs.items()])
-    t.set_description(mtrcs_str)
+    pred = tfu.camera_to_rgb_batch(pred/batch['alpha'],batch)
+    noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
+    mtrcs = metrics(pred,batch['ambient'])
+    mtrcs_noisy = metrics(noisy,batch['ambient'])
+    mtrcs_str = ''.join([' %s:%.5f' % (k,v[0]) for k,v in mtrcs.items()])
+    if(t is not None):
+        t.set_description(mtrcs_str)
     if(display):
-        predicted = apply(params,batch)
         imgs = visualize_model(params,batch)
         labels = diffable_solver.quad_model.labels()
-        imgs = [i/batch['alpha'] for i in imgs]
-        imgs = [predicted[0]/batch['alpha'],batch['ambient'],batch['noisy']/batch['alpha'],batch['flash'],*imgs]
-        trnsfrm = lambda x: tfu.camera_to_rgb_batch(x,batch)
-        labels = [r'$Prediction~(I),~PSNR:~%.3f$'%mtrcs['psnr'],r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f$'%mtrcs_noisy['psnr'],r'$Flash~input~(I_{flash})$',*labels]
-        logger.addImage(imgs,labels,'image',trnsfrm=trnsfrm,dim_type='BHWC',mode=mode)
-        # imgs = tfu.camera_to_rgb_batch(imgs/batch['alpha'], batch)
-        # noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'], batch)
-        # flash = tfu.camera_to_rgb_batch(batch['flash'], batch)
-        # g = tfu.camera_to_rgb_batch(predicted[0]/batch['alpha'], batch)
-        # ambient = tfu.camera_to_rgb_batch(batch['ambient'], batch)
-        # imshow = jnp.clip(jnp.concatenate((),axis=-2),0,1)
-        # logger.addImage([g,ambient,noisy,flash,imgs],['prediction','Ground Truth','Noisy input','Flash input',imgs],'image',mode=mode)
+        imgs = [tfu.camera_to_rgb_batch(i/batch['alpha']) for i in imgs]
+        imgs = [pred,batch['ambient'],noisy,tfu.camera_to_rgb_batch(batch['flash']),*imgs]
+        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
+        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
+
     if(save_params):
         logger.save_params(params,batch,i)
 
@@ -129,6 +124,7 @@ start_time = time.time()
 pred,_ = apply(params,batch)
 metrics(pred/batch['alpha'],batch['ambient'])
 visualize_model(params,batch)
+eval_visualize(params,batch,logger,'val',True,False)
 if(opts.mode == 'train'):
     #compile
     update(params,state,batch)
@@ -146,7 +142,7 @@ if(opts.mode == 'train'):
 
             batch = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
-            eval_visualize(params,batch,logger,'train',train_display,save_params)
+            eval_visualize(params,batch,logger,'train',train_display,save_params,t)
             logger.takeStep()
 elif(opts.mode == 'test'):
     end_time = time.time()
