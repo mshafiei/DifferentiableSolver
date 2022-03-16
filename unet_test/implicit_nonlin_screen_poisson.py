@@ -104,8 +104,9 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     pred,_ = apply(params,batch)
     pred = tfu.camera_to_rgb_batch(pred/batch['alpha'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
-    mtrcs = metrics(pred,batch['ambient'])
-    mtrcs_noisy = metrics(noisy,batch['ambient'])
+    ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
+    mtrcs = metrics(pred,ambient)
+    mtrcs_noisy = metrics(noisy,ambient)
     mtrcs_str = ''.join([' %s:%.5f' % (k,v[0]) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
@@ -113,7 +114,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         imgs = visualize_model(params,batch)
         labels = diffable_solver.quad_model.labels()
         imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
-        imgs = [pred,batch['ambient'],noisy,tfu.camera_to_rgb_batch(batch['flash'],batch),*imgs]
+        imgs = [pred,ambient,noisy,tfu.camera_to_rgb_batch(batch['flash'],batch),*imgs]
         labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
 
