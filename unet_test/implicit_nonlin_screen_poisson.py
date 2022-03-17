@@ -41,7 +41,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -113,10 +113,14 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     if(display):
         imgs = visualize_model(params,batch)
         labels = diffable_solver.quad_model.labels()
+        flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
         imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
-        imgs = [pred,ambient,noisy,tfu.camera_to_rgb_batch(batch['flash'],batch),*imgs]
+        imgs = [pred,ambient,noisy,flash,*imgs]
         labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
+        from cvgutils.nn.jaxUtils import utils
+        grads = (utils.dx(noisy) + utils.dy(noisy) + utils.dx(flash) + utils.dy(flash)) / 4.
+        logger.addImage([grads,noisy,flash],['grads','noisy','flash'],'grads',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)

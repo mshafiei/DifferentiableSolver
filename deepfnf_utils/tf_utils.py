@@ -53,8 +53,8 @@ def add_read_shot_noise(
     return noisy, sig_read, sig_shot
 
 def add_read_shot_noise_jax(
-    imgs,key1,key2,key3,key4, sig_read=None, sig_shot=None, 
-    min_read=-3., max_read=-2, min_shot=-2., max_shot=-1.3):
+    imgs,key1,key2,key3,key4, 
+    min_read, max_read, min_shot, max_shot,sig_read=None, sig_shot=None):
     if sig_read is None or sig_shot is None:
         bsz = (imgs).shape[0]
         sig_read = jnp.power(10., jax.random.uniform(
