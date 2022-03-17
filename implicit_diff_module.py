@@ -40,6 +40,30 @@ class Quad_model(nn.Module):
     def visualize(self,primal_param,inpt):
         pass
 
+class direct_model(nn.Module):
+    """Differentiable solver class
+    Input: Quadratic objective and initialization
+    Output: Minimizer of the objective found by gauss newton method
+    """
+    opts: Any
+    quad_model : nn.Module
+
+    @staticmethod
+    def parse_arguments(parser):
+        return parser
+    
+    def visualize(self,inpt):
+        return []
+        # predict = self(inpt)
+        # return self.model.visualize(predict[0],inpt)
+
+    def __call__(self,inpt):
+        return self.quad_model(inpt['net_input']), []
+
+    def labels(self):
+        return []
+
+
 class diff_solver(nn.Module):
     """Differentiable solver class
     Input: Quadratic objective and initialization
@@ -48,8 +72,6 @@ class diff_solver(nn.Module):
     opts: Any
     quad_model : Quad_model
 
-    
-    
     @staticmethod
     def parse_arguments(parser):
         parser.add_argument('--nlin_iter', type=int, default=1, help='Number of linear (Conjugate Gradient) iterations')
@@ -60,11 +82,12 @@ class diff_solver(nn.Module):
         predict = self(inpt)
         return self.quad_model.visualize(predict[0],inpt)
 
+    def labels(self):
+        return self.quad_model.labels()
+        
     # @implicit_diff.custom_root(jax.grad(screen_poisson_objective),has_aux=True)
-    
     def __call__(self,inpt):
         """Gauss newton solver
-
         Args:
             inpt (_type_): input
 

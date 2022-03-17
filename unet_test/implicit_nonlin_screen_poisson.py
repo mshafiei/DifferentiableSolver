@@ -13,14 +13,14 @@ import cvgutils.Viz as Viz
 import cvgutils.Linalg as linalg
 import argparse
 from jaxopt import implicit_diff, linear_solve
-from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model, implicit_poisson_model
+from implicit_diff_module import diff_solver, fnf_regularizer, implicit_sanity_model, implicit_poisson_model, direct_model
 from flax import linen as nn
 import deepfnf_utils.utils as ut
 import time
 
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model'],help='Which model to use')
+    choices=['implicit_sanity_model','implicit_poisson_model','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
     parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
@@ -41,7 +41,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -54,6 +54,8 @@ if(opts.model == 'implicit_sanity_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
 elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+elif(opts.model == 'unet'):
+    diffable_solver = direct_model(opts=opts, quad_model=UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus'))
 else:
     print('Cannot recognize model')
     exit(0)
@@ -112,15 +114,15 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         t.set_description(mtrcs_str)
     if(display):
         imgs = visualize_model(params,batch)
-        labels = diffable_solver.quad_model.labels()
+        labels = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
         imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
         imgs = [pred,ambient,noisy,flash,*imgs]
         labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
-        from cvgutils.nn.jaxUtils import utils
-        grads = (utils.dx(noisy) + utils.dy(noisy) + utils.dx(flash) + utils.dy(flash)) / 4.
-        logger.addImage([grads,noisy,flash],['grads','noisy','flash'],'grads',dim_type='BHWC',mode=mode)
+        # from cvgutils.nn.jaxUtils import utils
+        # grads = (utils.dx(noisy) + utils.dy(noisy) + utils.dx(flash) + utils.dy(flash)) / 4.
+        # logger.addImage([grads,noisy,flash],['grads','noisy','flash'],'grads',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)
