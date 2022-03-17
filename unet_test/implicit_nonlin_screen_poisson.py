@@ -126,7 +126,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
 
     if(save_params):
         logger.save_params(params,batch,i)
-
+    mtrcs = {k:v[0] for k,v in mtrcs.items()}
     logger.addMetrics(mtrcs,mode=mode)
     
 
