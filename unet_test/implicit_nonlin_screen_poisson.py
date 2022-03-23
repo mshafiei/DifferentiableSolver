@@ -41,7 +41,7 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
+opts = cvgutil.loadPickle('./params.pickle')
 # cvgutil.savePickle('./params.pickle',opts)
 # exit(0)
 tf.config.set_visible_devices([], device_type='GPU')
@@ -128,6 +128,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         logger.save_params(params,batch,i)
     mtrcs = {k:v[0] for k,v in mtrcs.items()}
     logger.addMetrics(mtrcs,mode=mode)
+    return mtrcs
     
 
 start_time = time.time()
@@ -157,43 +158,46 @@ if(opts.mode == 'train'):
 elif(opts.mode == 'test'):
     end_time = time.time()
     print('compile time ',end_time - start_time)
+    errors = {}
     for k in range(4):
         mtrcs = []
         for c in range(128):
-            data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
+            try:
+                data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
+                keys = [jax.random.PRNGKey(c*10 + i) for i in range(10)]
+                alpha = data['alpha'][None, None, None, None]
+                ambient = data['ambient']
+                dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'],keys[0], alpha=alpha)
+                dimmed_warped_ambient, _ = tfu.dim_image_jax(
+                    data['warped_ambient'], keys[1], alpha=alpha)
 
-            alpha = data['alpha'][None, None, None, None]
-            ambient = data['ambient']
-            dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'], alpha=alpha)
-            dimmed_warped_ambient, _ = tfu.dim_image_jax(
-                data['warped_ambient'], alpha=alpha)
+                # Make the flash brighter by increasing the brightness of the
+                # flash-only image.
+                flash = data['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+                warped_flash = data['warped_flash_only'] * \
+                    ut.FLASH_STRENGTH + dimmed_warped_ambient
 
-            # Make the flash brighter by increasing the brightness of the
-            # flash-only image.
-            flash = data['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
-            warped_flash = data['warped_flash_only'] * \
-                ut.FLASH_STRENGTH + dimmed_warped_ambient
+                noisy_ambient = data['noisy_ambient']
+                noisy_flash = data['noisy_warped_flash']
 
-            noisy_ambient = data['noisy_ambient']
-            noisy_flash = data['noisy_warped_flash']
+                noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
+                noise_std = tfu.estimate_std_jax(
+                    noisy, data['sig_read'], data['sig_shot'])
+                net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
-            noisy = tf.concat([noisy_ambient, noisy_flash], axis=-1)
-            noise_std = tfu.estimate_std(
-                noisy, data['sig_read'], data['sig_shot'])
-            net_input = tf.concat([noisy, noise_std], axis=-1)
-
-            batch = {'net_input':net_input,'noisy':noisy,'noise_std':noise_std,'flash':flash}
-            denoise = apply(params,batch)
-            eval_visualize(params,batch,logger,'test',True,False)
-            logger.takeStep()
-
-            mtrcs.append(metrics(params,batch))
+                batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
+                denoise = apply(params,batch)
+                mt = eval_visualize(params,batch,logger,'test',True,False)
+                logger.takeStep()
+                mtrcs.append(mt)
+            except:
+                pass
         
         psnr = np.mean([i['psnr'] for i in mtrcs])
         mse = np.mean([i['mse'] for i in mtrcs])
 
-        print('\nLevel %d' % (4 - k) +
-            ': PSNR: %.3f, SSIM: %.4f' % (psnr,mse))
+        errors['Level %d' % (4 - k)] = 'PSNR: %.3f, SSIM: %.4f' % (psnr,mse)
+    logger.addDict(errors,'test_errors')
 else:
     print('Unknown mode ',opts.mode)
     exit(0)
