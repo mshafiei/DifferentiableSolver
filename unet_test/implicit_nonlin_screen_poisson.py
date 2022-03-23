@@ -197,7 +197,7 @@ elif(opts.mode == 'test'):
         mse = np.mean([i['mse'] for i in mtrcs])
 
         errors['Level %d' % (4 - k)] = 'PSNR: %.3f, SSIM: %.4f' % (psnr,mse)
-    logger.addDict(errors,'test_errors')
+    logger.addDict(errors,'test_errors',opts.mode)
 else:
     print('Unknown mode ',opts.mode)
     exit(0)
