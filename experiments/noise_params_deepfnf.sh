@@ -5,4 +5,4 @@ noise_params="\
 --min_read -3 \
 --max_read -2 \
 --min_shot -2 \
---max_shot -1.3 "
+--max_shot -1.3"

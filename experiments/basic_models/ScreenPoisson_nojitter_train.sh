@@ -9,7 +9,7 @@ exp_params="\
 --logdir logger/nonlin-poisson-nojitter-fixed2 \
 --expname unet-poisson-deriv \
 --batch_size 1 \
---out_features 3 \
+--out_features 6 \
 --in_features 12"
 
 
@@ -17,5 +17,5 @@ exp_params="\
 name=msh-deep-nonlin-screen-poisson-generalize-nojitter-fixed2-train
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params"
 
-./experiments/run_local.sh "$scriptFn $name"
-# ./run_server.sh $scriptFn $name
+# ./experiments/run_local.sh "$scriptFn"
+./experiments/run_server.sh "$scriptFn" "$name"

@@ -313,6 +313,7 @@ class ValSet:
                         .prefetch(ngpus)
                         )
         self.iterator = iter(self.dataset)
+        self.len = len(glob.glob(val_path+'/*.npz'))
 
     def initialize(self):
         self.iterator = iter(self.dataset)
