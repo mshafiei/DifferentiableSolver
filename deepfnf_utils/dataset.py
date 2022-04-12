@@ -96,7 +96,6 @@ def gen_homography(
     H = tf.matmul(rotate_homo, scale_shift)
     H = tf.matmul(H, curr)
     H = tf.reshape(H, [1, 9])
-
     warped_flash_only, _ = transformer(flash_only[None], H, [height, width])
     warped_flash_only = tf.squeeze(warped_flash_only, axis=0)
     warped_flash_only = warped_flash_only[y:y + psz, x:x + psz, :]
@@ -174,39 +173,40 @@ class Dataset:
         self.train_iter = iter(self.train.dataset)
         self.val_iter = iter(self.val.dataset)
     
+            
     # Check for saved weights & optimizer states
     def preprocess(self,example,keys):
-        
-
         key1, key2, key3, key4, key5, key6, key7, key8, key9, key10= keys
 
-        # # for i in range(opts.ngpus):
-        #     # with tf.device('/gpu:%d' % i):
-        alpha = example['alpha'][:, None, None, None]
-        dimmed_ambient, _ = tfu.dim_image_jax(
-            example['ambient'], key1,alpha=alpha)
-        dimmed_warped_ambient, _ = tfu.dim_image_jax(
-            example['warped_ambient'],key2, alpha=alpha)
+        if('jitter' in self.opts.debug):
+            alpha = 1.
+            dimmed_ambient = example['ambient']
+            dimmed_warped_ambient = example['warped_ambient']
+            warped_flash = dimmed_warped_ambient
+            noisy_ambient = dimmed_ambient
+            noisy_flash = warped_flash
+            sig_read = example['sig_read'][:, None, None, None]
+            sig_shot = example['sig_shot'][:, None, None, None]
+        else:
+            alpha = example['alpha'][:, None, None, None]
+            dimmed_ambient, _ = tfu.dim_image_jax(
+                example['ambient'], key1,alpha=alpha)
+            dimmed_warped_ambient, _ = tfu.dim_image_jax(
+                example['warped_ambient'],key2, alpha=alpha)
 
         # Make the flash brighter by increasing the brightness of the
         # flash-only image.
-        flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
-        warped_flash = example['warped_flash_only'] * \
-            ut.FLASH_STRENGTH + dimmed_warped_ambient
+            flash = example['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+            warped_flash = example['warped_flash_only'] * \
+                ut.FLASH_STRENGTH + dimmed_warped_ambient
 
-        sig_read = example['sig_read'][:, None, None, None]
-        sig_shot = example['sig_shot'][:, None, None, None]
+            sig_read = example['sig_read'][:, None, None, None]
+            sig_shot = example['sig_shot'][:, None, None, None]
         
-        noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
-            dimmed_ambient,key3,key4,key5,key6, min_read=self.opts.min_read, max_read=self.opts.max_read, min_shot=self.opts.min_shot, max_shot=self.opts.max_shot,sig_read=sig_read, sig_shot=sig_shot)
-        noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
-            warped_flash,key7,key8,key9,key10, min_read=self.opts.min_read, max_read=self.opts.max_read, min_shot=self.opts.min_shot, max_shot=self.opts.max_shot,sig_read=sig_read, sig_shot=sig_shot)
-
-        # noisy_ambient = jnp.zeros_like(example['ambient'])
-        # noisy_flash = jnp.zeros_like(example['ambient'])
-        # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
-        # sig_read = jnp.zeros((*example['ambient'].shape[:-1],6))
-        # sig_shot = jnp.zeros((*example['ambient'].shape[:-1],6))
+            noisy_ambient, _, _ = tfu.add_read_shot_noise_jax(
+                dimmed_ambient,key3,key4,key5,key6, min_read=self.opts.min_read, max_read=self.opts.max_read, min_shot=self.opts.min_shot, max_shot=self.opts.max_shot,sig_read=sig_read, sig_shot=sig_shot)
+            noisy_flash, _, _ = tfu.add_read_shot_noise_jax(
+                warped_flash,key7,key8,key9,key10, min_read=self.opts.min_read, max_read=self.opts.max_read, min_shot=self.opts.min_shot, max_shot=self.opts.max_shot,sig_read=sig_read, sig_shot=sig_shot)
 
         noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
         noise_std = tfu.estimate_std_jax(noisy, sig_read, sig_shot)
@@ -216,6 +216,7 @@ class Dataset:
             'alpha':alpha,
             'ambient':example['ambient'],
             'flash':noisy_flash,
+            'flash_only':example['flash_only'],
             'noisy':noisy_ambient,
             'net_input':net_input,
             'adapt_matrix':example['adapt_matrix'],
@@ -224,23 +225,18 @@ class Dataset:
         
         return output
     def next_batch(self,val_iter_p,iter_c):
+        started = False
         if(val_iter_p):
-            try:
-                batch = self.val_iter.next()
-            except StopIteration:
-                self.val_iter = iter(self.val.dataset)
-                batch = self.val_iter.next()
+            batch = self.val_iter.next()
+            started = (iter_c+1) % self.val.len == 0
         else:
-            try:
-                batch = self.train_iter.next()
-            except StopIteration:
-                self.train_iter = iter(self.train.dataset)
-                batch = self.train_iter.next()
+            batch = self.train_iter.next()
+            started = (iter_c+1) % self.train.len == 0
         batch = {k:jnp.array(v.numpy()) for k,v in batch.items()}
         keys = [jax.random.PRNGKey(iter_c*10 + i) for i in range(10)]
         
         
-        return self.preprocess(batch,keys)
+        return self.preprocess(batch,keys), started
 
     @staticmethod
     def parse_arguments(parser):
@@ -300,6 +296,7 @@ class TrainSet:
                         .prefetch(ngpus)
                         )
         self.iterator = iter(self.dataset)
+        self.len=len(files)
         
     def initialize(self):
         self.iterator = iter(self.dataset)
@@ -356,6 +353,8 @@ class _OnFlyValSet:
                         .prefetch(ngpus)
                         )
         self.iterator = iter(self.dataset)
+        self.len=len(files)
+
 
     def initialize(self, sess):
         self.iterator = iter(self.dataset)

@@ -28,6 +28,7 @@ def parse_arguments(parser):
     parser.add_argument('--max_iter', default=100000000, type=int,help='Maximum iteration count')
     parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural net')
     parser.add_argument('--mode', default='train', type=str,choices=['train','test'],help='Should we train or test the model?')
+    parser.add_argument('--debug', default='none', type=str,help='What should we debug')
     
     return parser
 
@@ -41,14 +42,12 @@ parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
 
-# opts = cvgutil.loadPickle('./params.pickle')
-# cvgutil.savePickle('./params.pickle',opts)
-# exit(0)
+logger = Viz.logger(opts,opts.__dict__)
+opts = logger.opts
 tf.config.set_visible_devices([], device_type='GPU')
 dataset = Dataset(opts)
-logger = Viz.logger(opts,opts.__dict__)
 
-batch = dataset.next_batch(False,0)
+batch,_ = dataset.next_batch(False,0)
 im = batch['net_input']
 if(opts.model == 'implicit_sanity_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
@@ -56,6 +55,8 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus'))
+elif(opts.model == 'dummy'):
+    diffable_solver = diff_solver(opts=opts, quad_model=nn.Module())
 else:
     print('Cannot recognize model')
     exit(0)
@@ -100,6 +101,7 @@ if(data is not None):
     batch = data['state']
     params = data['params']
     start_idx = data['idx']
+    print('Parameters loaded successfully')
 
 
 def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
@@ -132,7 +134,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     
 
 start_time = time.time()
-pred,_ = apply(params,batch)
+pred,aux = apply(params,batch)
 metrics(pred/batch['alpha'],batch['ambient'])
 visualize_model(params,batch)
 eval_visualize(params,batch,logger,'val',True,False)
@@ -148,10 +150,10 @@ if(opts.mode == 'train'):
             train_display = i % opts.display_freq == 0
             save_params = i % opts.save_param_freq == 0
             if(val_iter):
-                batch = dataset.next_batch(True,i)
+                batch,_ = dataset.next_batch(True,i)
                 eval_visualize(params,batch,logger,'val',True,False)
 
-            batch = dataset.next_batch(False,i)
+            batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
             eval_visualize(params,batch,logger,'train',train_display,save_params,t)
             logger.takeStep()
@@ -161,7 +163,7 @@ elif(opts.mode == 'test'):
     errors = {}
     for k in range(4):
         mtrcs = []
-        for c in range(128):
+        for c in tqdm.trange(128):
             try:
                 data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
                 keys = [jax.random.PRNGKey(c*10 + i) for i in range(10)]
@@ -187,7 +189,7 @@ elif(opts.mode == 'test'):
 
                 batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
                 denoise = apply(params,batch)
-                mt = eval_visualize(params,batch,logger,'test',True,False)
+                mt = eval_visualize(params,batch,logger,'test', c % 10 == 0 ,False)
                 logger.takeStep()
                 mtrcs.append(mt)
             except:

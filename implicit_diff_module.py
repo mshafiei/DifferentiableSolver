@@ -6,6 +6,7 @@ from jaxopt import implicit_diff, linear_solve
 from cvgutils.nn.jaxUtils import utils, unet_model
 from cvgutils.nn.jaxUtils.unet_parts import Sequential
 from typing import Any
+import deepfnf_utils.tf_utils as tfu
 from jax import random
 
 
@@ -97,8 +98,11 @@ class diff_solver(nn.Module):
 
         #Resudual
         r = lambda pp_image: self.quad_model(pp_image,inpt)
+        r_terms = lambda pp_image: self.quad_model.terms(pp_image,inpt)
         #Quadratic objective
         r2sum = lambda pp_image: (r(pp_image) ** 2).sum()
+        r2sum_terms = lambda pp_image: [(i ** 2).sum() for i in r_terms(pp_image)]
+        
         x = self.quad_model.init_primal(inpt)
         optim_cond = lambda x: (jax.grad(r2sum)(x) ** 2).sum()
 
@@ -121,23 +125,25 @@ class diff_solver(nn.Module):
             return d, aux
 
         def loop_body(args):
-            x,count, gn_opt_err, gn_loss,linear_opt_err = args
+            x,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err = args
             d, linea_opt = linear_solver_id(None,x)
             x += 1.0 * d
 
             linear_opt_err = linear_opt_err.at[count.astype(int)].set(linea_opt)
             gn_opt_err = gn_opt_err.at[count.astype(int)].set(optim_cond(x))
             gn_loss = gn_loss.at[count.astype(int)].set(r2sum(x))
+            for i,ri in enumerate(r2sum_terms(x)):
+                gn_loss_terms = gn_loss_terms.at[count.astype(int),i].set(ri)
             count += 1
-            return (x,count, gn_opt_err, gn_loss,linear_opt_err)
+            return (x,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err)
 
         loop_count = self.opts.nnonlin_iter
-        val = (x,jnp.array([0.0]),-jnp.ones(loop_count),-jnp.ones(loop_count),-jnp.ones(loop_count))
+        val = (x,jnp.array([0.0]),-jnp.ones(loop_count),-jnp.ones(loop_count),-jnp.ones((loop_count,self.quad_model.nterms())),-jnp.ones(loop_count))
         for i in range(loop_count):
             val = loop_body(val)
-        x,count, gn_opt_err, gn_loss,linear_opt_err = val
+        x,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err = val
         # x,count, gn_opt_err, gn_loss,linear_opt_err = jax.lax.fori_loop(0,loop_count,lambda i,val:loop_body(val),(x,0.0,-jnp.ones(loop_count),-jnp.ones(loop_count),-jnp.ones(loop_count))) 
-        return x,{'count':count,'gn_opt_err':gn_opt_err, 'gn_loss':gn_loss,'linear_opt_err':linear_opt_err}
+        return x,{'count':count,'gn_opt_err':gn_opt_err, 'gn_loss':gn_loss,'gn_loss_terms':gn_loss_terms,'linear_opt_err':linear_opt_err}
         ###############`# linear and nonlinear solvers end #################
 
 #Models
@@ -156,12 +162,17 @@ class fnf_regularizer(Quad_model):
         rand = random.uniform(key)
         return jnp.array(rand)
 
+    def nterms(self):
+        return 3
+
     def __call__(self,primal_param,inpt):
         avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
-        r1 =  primal_param - inpt['noisy']
+        tfm = lambda x : tfu.camera_to_rgb_jax(x/inpt['alpha'],inpt)
+
+        r1 =  tfm(primal_param) - tfm(inpt['noisy'])
         g = self.unet(inpt['net_input'])
-        r2 = utils.dx(primal_param) - g[...,:3]
-        r3 = utils.dy(primal_param) - g[...,3:]  
+        r2 = tfm(utils.dx(primal_param)) - tfm(g[...,:3])
+        r3 = tfm(utils.dy(primal_param)) - tfm(g[...,3:])
         alpha = self.alpha(inpt['net_input']).reshape(-1)      
         out = jnp.concatenate(( r1.reshape(-1), alpha * r2.reshape(-1), alpha * r3.reshape(-1)),axis=0)
         return out * avg_weight
@@ -183,19 +194,28 @@ class implicit_sanity_model(Quad_model):
         rand = random.uniform(key)
         return jnp.array(rand)
 
+    def terms(self,primal_param,inpt):
+        avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
+        tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
+        r1 =  tfm(primal_param) - tfm(inpt['noisy'])
+        g = self.unet(inpt['net_input'])
+        r2 = self.alpha * (tfm(primal_param) - tfm(g))
+        return r1.reshape(-1) * avg_weight, r2.reshape(-1) * avg_weight
+        
+    def nterms(self):
+        return 2
+        
     @nn.compact
     def __call__(self,primal_param,inpt):
-        avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
-        r1 =  primal_param - inpt['noisy']
-        g = self.unet(inpt['net_input'])
-        r2 = self.alpha * (primal_param - g)
-        out = jnp.concatenate(( r1.reshape(-1), r2.reshape(-1)),axis=0)
-        return out * avg_weight
+        r1, r2 = self.terms(primal_param,inpt)
+        out = jnp.concatenate((r1, r2),axis=0)
+        return out
     
     def visualize(self,primal_param,inpt):
-        r1 =  primal_param - inpt['noisy']
+        tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
+        r1 =  tfm(primal_param) - tfm(inpt['noisy'])
         g = self.unet(inpt['net_input'])
-        r2 = self.alpha * (primal_param - g)
+        r2 = self.alpha * (tfm(primal_param) - tfm(g))
         imgs = [r1, g, r2]
         return imgs
     def labels(self):
@@ -218,26 +238,36 @@ class implicit_poisson_model(Quad_model):
         rand = random.uniform(key)
         return jnp.array(rand)
 
+    def nterms(self):
+        return 3
+    def terms(self,primal_param,inpt):
+        avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
+        tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
+        r1 =  tfm(primal_param) - tfm(inpt['noisy'])
+        g = self.unet(inpt['net_input'])
+        r2 = self.alpha * (tfm(utils.dx(primal_param)) - tfm(g[...,:3]))
+        r3 = self.alpha * (tfm(utils.dy(primal_param)) - tfm(g[...,3:]))
+        return r1.reshape(-1)*avg_weight, r2.reshape(-1)*avg_weight, r3.reshape(-1)*avg_weight
+
     @nn.compact
     def __call__(self,primal_param,inpt):
-        avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
-        r1 =  primal_param - inpt['noisy']
-        g = self.unet(inpt['net_input'])
-        r2 = self.alpha * (utils.dx(primal_param) - g[...,:3])
-        r3 = self.alpha * (utils.dy(primal_param) - g[...,3:])
-        out = jnp.concatenate(( r1.reshape(-1), r2.reshape(-1), r3.reshape(-1)),axis=0)
-        return out * avg_weight
+        r1, r2, r3 = self.terms(primal_param,inpt)
+        out = jnp.concatenate((r1, r2, r3),axis=0)
+        return out
     
     def visualize(self,primal_param,inpt):
-        r1 =  primal_param - inpt['noisy']
+        tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
+        r1 =  tfm(primal_param) - tfm(inpt['noisy'])
         g = self.unet(inpt['net_input'])
-        r2 = self.alpha * (utils.dx(primal_param) - g[...,:3])
-        r3 = self.alpha * (utils.dy(primal_param) - g[...,3:])
-        imgs = [r1, g[...,:3], g[...,3:], r2, r3]
+        dx = tfm(utils.dx(primal_param))
+        dy = tfm(utils.dy(primal_param))
+        r2 = self.alpha * (tfm(utils.dx(primal_param)) - tfm(g[...,:3]))
+        r3 = self.alpha * (tfm(utils.dy(primal_param)) - tfm(g[...,3:]))
+        imgs = [r1, g[...,:3],dx, g[...,3:],dy, r2, r3]
         return imgs
     
     def labels(self):
-        return [r'$Fidelity~res~(I-I_{noisy})$', r'$Unet~output~(g[1:3])$', r'$Unet~output~(g[3:6])$', r'$x~regularizer~res~(\lambda(\partial_x I - g[1:3]))$', r'$y~regularizer~res~(\lambda(\partial_y I - g[3:6]))$']
+        return [r'$Fidelity~res~(I-I_{noisy})$', r'$Unet~output~(g[1:3])$', r'$\nabla_x I$', r'$Unet~output~(g[3:6])$', r'$\nabla_y I$', r'$x~regularizer~res~(\lambda(\partial_x I - g[1:3]))$', r'$y~regularizer~res~(\lambda(\partial_y I - g[3:6]))$']
 
 
 class screen_poisson(Quad_model):
@@ -250,16 +280,22 @@ class screen_poisson(Quad_model):
         rand = random.uniform(key)
         return jnp.array(rand)
 
-    @nn.compact
-    def __call__(self,primal_param,inpt):
+    def terms(self,primal_param,inpt):
         alpha = self.param('alpha',
                     screen_poisson.init_hyper,
                     None,
                     jnp.array)
 
         avg_weight = (1. / 2.) ** 0.5 *  (1. / primal_param.reshape(-1).shape[0] ** 0.5)
-        r1 =  primal_param - inpt['noisy']
-        r2 = nn.softplus(alpha) * utils.dx(primal_param)
-        r3 = nn.softplus(alpha) * utils.dy(primal_param)
-        out = jnp.concatenate(( r1.reshape(-1), r2.reshape(-1), r3.reshape(-1)),axis=0)
-        return out * avg_weight
+        tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
+        r1 =  (tfm(primal_param) - tfm(inpt['noisy']))
+        r2 = nn.softplus(alpha) * tfm(utils.dx(primal_param))
+        r3 = nn.softplus(alpha) * tfm(utils.dy(primal_param))
+        return r1.reshape(-1) * avg_weight, r2.reshape(-1) * avg_weight, r3.reshape(-1) * avg_weight
+    def nterms(self):
+        return 3
+    @nn.compact
+    def __call__(self,primal_param,inpt):
+        r1, r2, r3 = self.terms(primal_param,inpt)
+        out = jnp.concatenate((r1, r2, r3),axis=0)
+        return out

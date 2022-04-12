@@ -172,8 +172,8 @@ def transformer(U, theta, out_size, name='SpatialTransformer', **kwargs):
                                 tf.ones(shape=tf.stack([1, width])))
             else:
                 x_t = tf.matmul(tf.ones(shape=tf.stack([height, 1])),
-                                tf.transpose(tf.expand_dims(tf.linspace(0.0, tf.cast(width, 'float32'), width), 1), [1, 0]))
-                y_t = tf.matmul(tf.expand_dims(tf.linspace(0.0, tf.cast(height, 'float32'), height), 1),
+                                tf.transpose(tf.expand_dims(tf.linspace(0.0, tf.cast(width-1, 'float32'), width), 1), [1, 0]))
+                y_t = tf.matmul(tf.expand_dims(tf.linspace(0.0, tf.cast(height-1, 'float32'), height), 1),
                                 tf.ones(shape=tf.stack([1, width])))
 
             x_t_flat = tf.reshape(x_t, (1, -1))
