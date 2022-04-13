@@ -2,6 +2,7 @@
 source ./experiments/homography_params_static.sh
 source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
+source ./experiments/solver_params.sh
 exp_params="\
 --mode train \
 --model unet \
@@ -14,8 +15,8 @@ exp_params="\
 
 
 
-name=msh-deep-nonlin-screen-poisson-generalize-nojitter-fixed2-train
-scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params"
+name=msh-deep-nonlin-unet-generalize-nojitter-fixed2-train
+scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-./experiments/run_local.sh $scriptFn $name
-# ./run_server.sh $scriptFn $name
+# ./experiments/run_local.sh "$scriptFn" "$name"
+./experiments/run_server.sh "$scriptFn" "$name"

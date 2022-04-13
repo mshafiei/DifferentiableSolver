@@ -50,11 +50,11 @@ dataset = Dataset(opts)
 batch,_ = dataset.next_batch(False,0)
 im = batch['net_input']
 if(opts.model == 'implicit_sanity_model'):
-    diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')))
 elif(opts.model == 'implicit_poisson_model'):
-    diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus')))
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')))
 elif(opts.model == 'unet'):
-    diffable_solver = direct_model(opts=opts, quad_model=UNet(opts.in_features,opts.out_features,opts.bilinear,opts.test,opts.group_norm,'softplus'))
+    diffable_solver = direct_model(opts=opts, quad_model=UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus'))
 elif(opts.model == 'dummy'):
     diffable_solver = diff_solver(opts=opts, quad_model=nn.Module())
 else:
