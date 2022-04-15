@@ -117,7 +117,7 @@ class diff_solver(nn.Module):
             return Ax(d) + jtf(x)
 
         # @implicit_diff.custom_root(Axb,has_aux=True)
-        def linear_solver_id(d,x):
+        def linear_solver_id(x):
             d = linear_solve.solve_cg(matvec=Ax,
                                     b=-jtf(x),
                                     maxiter=3000,tol=1e-25)
@@ -126,7 +126,7 @@ class diff_solver(nn.Module):
 
         def loop_body(args):
             x,xs,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err = args
-            d, linea_opt = linear_solver_id(jnp.zeros_like(x),x)
+            d, linea_opt = linear_solver_id(x)
             print('linea_opt',linea_opt)
             assert linea_opt < 1e-15, 'linear system is not converging'
             x += 1.0 * d
