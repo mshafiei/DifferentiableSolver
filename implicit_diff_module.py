@@ -120,8 +120,7 @@ class diff_solver(nn.Module):
         def linear_solver_id(d,x):
             d = linear_solve.solve_cg(matvec=Ax,
                                     b=-jtf(x),
-                                    init=d,
-                                    maxiter=10000,tol=1e-25)
+                                    maxiter=3000,tol=1e-25)
             aux = (Axb(x,d) ** 2).sum()
             return d, aux
 
