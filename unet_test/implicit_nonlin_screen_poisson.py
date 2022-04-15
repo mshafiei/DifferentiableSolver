@@ -1,4 +1,4 @@
-from cvgutils.nn.jaxUtils.unet_model import UNet
+from cvgutils.nn.jaxUtils.unet_model import UNet, DummyConv
 import jax.numpy as jnp
 import jax
 import optax
@@ -21,6 +21,7 @@ import time
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
     choices=['implicit_sanity_model','implicit_poisson_model','unet'],help='Which model to use')
+    parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
     parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
@@ -49,12 +50,19 @@ dataset = Dataset(opts)
 
 batch,_ = dataset.next_batch(False,0)
 im = batch['net_input']
+if(opts.nn_model == 'unet'):
+    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')
+elif(opts.nn_model == 'linear'):
+    nn_model = DummyConv(opts.in_features,opts.out_features)
+else:
+    print('Unknowns neural network')
+
 if(opts.model == 'implicit_sanity_model'):
-    diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')))
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_sanity_model(nn_model))
 elif(opts.model == 'implicit_poisson_model'):
-    diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')))
+    diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
-    diffable_solver = direct_model(opts=opts, quad_model=UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus'))
+    diffable_solver = direct_model(opts=opts, quad_model=nn_model)
 elif(opts.model == 'dummy'):
     diffable_solver = diff_solver(opts=opts, quad_model=nn.Module())
 else:
@@ -63,14 +71,17 @@ else:
 
 rng = jax.random.PRNGKey(2)
 rng, init_rng = jax.random.split(rng)
+
+
+# visualize_model = jax.jit(lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
+# apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
+visualize_model = (lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
+apply = (lambda params,batch :diffable_solver.apply(params,batch))
+
 params = diffable_solver.init(rng,batch)
-pred, aux = diffable_solver.apply(params,batch)
+pred, aux = apply(params,batch)
 
-
-visualize_model = jax.jit(lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
-apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
-
-@jax.jit
+# @jax.jit
 def loss(params,batch):
     pred, aux = apply(params,batch)
     pred = jnp.clip(tfu.camera_to_rgb_batch(pred/batch['alpha'],batch),0,1)
@@ -78,7 +89,7 @@ def loss(params,batch):
 
     return ((ambient - pred) ** 2).sum(), aux
 
-@jax.jit
+# @jax.jit
 def metrics(pred,gt):
     pred = jnp.clip(pred,0,1)
     gt = jnp.clip(gt,0,1)
@@ -87,7 +98,7 @@ def metrics(pred,gt):
     return {'mse':mse,'psnr':psnr}
 
 
-@jax.jit
+# @jax.jit
 def update(params_p,state_p,batch_p):
     params_p, state_p = solver.update(params_p, state_p,batch=batch_p)
     return params_p, state_p
@@ -105,7 +116,7 @@ if(data is not None):
 
 
 def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
-    pred,_ = apply(params,batch)
+    pred,aux = apply(params,batch)
     pred = tfu.camera_to_rgb_batch(pred/batch['alpha'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
@@ -119,8 +130,16 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         labels = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
         imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
-        imgs = [pred,ambient,noisy,flash,*imgs]
-        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],mtrcs['mse'][0]),r'$Ground~Truth~(I_{ambient})$',r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],mtrcs_noisy['mse'][0]),r'$Flash~input~(I_{flash})$',*labels]
+        aux['xs'] = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in aux['xs']]
+        imgs = [pred,ambient,noisy,flash,*imgs,*aux['xs']]
+        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],
+                    mtrcs['mse'][0]),
+                    r'$Ground~Truth~(I_{ambient})$',
+                    r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],
+                    mtrcs_noisy['mse'][0]),
+                    r'$Flash~input~(I_{flash})$',
+                    *labels,
+                    *[r'$I^%i$' % i for i in range(opts.nnonlin_iter)] ]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
         # from cvgutils.nn.jaxUtils import utils
         # grads = (utils.dx(noisy) + utils.dy(noisy) + utils.dx(flash) + utils.dy(flash)) / 4.
@@ -130,6 +149,11 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         logger.save_params(params,batch,i)
     mtrcs = {k:v[0] for k,v in mtrcs.items()}
     logger.addMetrics(mtrcs,mode=mode)
+    termNames = diffable_solver.termLabels()
+    for step in range(opts.nnonlin_iter):
+        logger.addScalar(aux['gn_loss'][step],'gn_loss_overall/step%i'%step,mode=mode)
+        for term in range(len(termNames)):
+            logger.addScalar(aux['gn_loss_terms'][step,term],'gn_loss_%s/step%i'%(termNames[term],step),mode=mode,display_name='gn_loss_%s'%termNames[term])
     return mtrcs
     
 

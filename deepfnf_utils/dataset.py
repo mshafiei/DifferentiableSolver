@@ -288,7 +288,7 @@ class TrainSet:
         ))
         self.dataset = (dataset
                         .repeat()
-                        .shuffle(buffer_size=len(files))
+                        # .shuffle(buffer_size=len(files))
                         .map(load_image, num_parallel_calls=nthreads)
                         .map(gen_homography_fn, num_parallel_calls=nthreads)
                         .map(gen_random_params_fn, num_parallel_calls=nthreads)
