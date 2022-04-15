@@ -121,13 +121,14 @@ class diff_solver(nn.Module):
             d = linear_solve.solve_cg(matvec=Ax,
                                     b=-jtf(x),
                                     init=d,
-                                    maxiter=10000,tol=1e-40)
+                                    maxiter=10000,tol=1e-25)
             aux = (Axb(x,d) ** 2).sum()
             return d, aux
 
         def loop_body(args):
             x,xs,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err = args
-            d, linea_opt = linear_solver_id(None,x)
+            d, linea_opt = linear_solver_id(jnp.zeros_like(x),x)
+            print('linea_opt',linea_opt)
             assert linea_opt < 1e-15, 'linear system is not converging'
             x += 1.0 * d
             xs = xs.at[count[0].astype(int)+1,...].set(jax.lax.stop_gradient(x))
