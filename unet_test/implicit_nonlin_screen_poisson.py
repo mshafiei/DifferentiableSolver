@@ -51,11 +51,11 @@ tf.config.set_visible_devices([], device_type='GPU')
 dataset = Dataset(opts)
 
 batch,_ = dataset.next_batch(False,0)
-dr = '/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver'
-noisy = jnp.clip(tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch),0,1)
-ambient = jnp.clip(tfu.camera_to_rgb_batch(batch['ambient'],batch),0,1)
-cvgim.imwrite(os.path.join(dr,'noisy.png'),noisy[0])
-cvgim.imwrite(os.path.join(dr,'gt.png'),ambient[0])
+# dr = '/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver'
+# noisy = jnp.clip(tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch),0,1)
+# ambient = jnp.clip(tfu.camera_to_rgb_batch(batch['ambient'],batch),0,1)
+# cvgim.imwrite(os.path.join(dr,'noisy.png'),noisy[0])
+# cvgim.imwrite(os.path.join(dr,'gt.png'),ambient[0])
 
 
 im = batch['net_input']
