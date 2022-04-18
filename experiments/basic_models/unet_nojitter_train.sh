@@ -7,8 +7,8 @@ exp_params="\
 --mode train \
 --model unet \
 --TLIST data/train_1600.txt \
---logdir logger/nonlin-poisson-nojitter-fixed2 \
---expname unet \
+--logdir logger/Unet_test \
+--expname unet-generalize-nojitter-1bsz \
 --batch_size 1 \
 --out_features 3 \
 --in_features 12"

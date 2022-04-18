@@ -8,8 +8,9 @@ from cvgutils.nn.jaxUtils.unet_parts import Sequential
 from typing import Any
 import deepfnf_utils.tf_utils as tfu
 from jax import random
-
-
+import cvgutils.Linalg as linalg
+import cvgutils.Image as cvgim
+from functools import partial
 #diff solve(module)
 #setup()
 #  self.quadratic_model with primal parameters
@@ -64,6 +65,55 @@ class direct_model(nn.Module):
     def labels(self):
         return []
 
+class fft_solver(nn.Module):
+    """Solves a screen poisson equation by an fft solver
+    Input: gradient for screen poisson equation
+    """
+    opts: Any
+    quad_model : Quad_model
+    def setup(self):
+        self.alpha = self.param('alpha',
+            implicit_sanity_model.init_hyper,
+            None,
+            jnp.array)
+
+    def visualize(self,inpt):
+        predict,[] = self(inpt)
+        g = self.quad_model(inpt['net_input'])
+        dx = jnp.roll(predict, 1, axis=[1]) - predict
+        dy = jnp.roll(predict, 1, axis=[0]) - predict
+        return [predict,g[...,:3]*0.5+0.5,dx*0.5+0.5,g[...,3:]*0.5+0.5,dy*0.5+0.5]
+        # predict,(gt,grad_x,dx,grad_y,dy) = self(inpt)
+        # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
+
+    def labels(self):
+        return ['$I$',r'$Unet output (g^x)$',r'$\nabla_x I$',r'$Unet output (g^y)$',r'$\nabla_y I$']
+        # return [r'$I$',r'$I_{ambient}$',r'$g^x$',r'$\nabla_x I$',r'$g^y$',r'$\nabla_y I$']
+        
+    def __call__(self,inpt):
+        g = self.quad_model(inpt['net_input'])
+        # lambda_d = 0.00000001
+        psp = partial(linalg.screen_poisson,self.alpha)
+        b,h,w,c = inpt['noisy'].shape
+        img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
+        dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
+        dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
+        func = map(psp,img,dx,dy)
+        dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
+        dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
+        return jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1), []
+        # noisy = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/noisy.png')
+        # gt = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/gt.png')
+
+        # grad_x = g[0,...,:3]
+        # grad_y = g[0,...,3:]
+
+        # sp = map(linalg.screen_poisson,[lambda_d,lambda_d,lambda_d], noisy.transpose(2,0,1),grad_x.transpose(2,0,1),grad_y.transpose(2,0,1))
+        # recon = jnp.stack(list(sp),axis=-1)[None,...]
+        # dx = jnp.roll(recon, 1, axis=[1]) - recon
+        # dy = jnp.roll(recon, 1, axis=[0]) - recon
+        # return recon , [gt[None,...], grad_x,dx, grad_y,dy]
+        
 
 class diff_solver(nn.Module):
     """Differentiable solver class
@@ -85,6 +135,7 @@ class diff_solver(nn.Module):
 
     def labels(self):
         return self.quad_model.labels()
+
     def termLabels(self):
         return self.quad_model.termLabels()
         
@@ -120,15 +171,14 @@ class diff_solver(nn.Module):
         def linear_solver_id(x):
             d = linear_solve.solve_cg(matvec=Ax,
                                     b=-jtf(x),
-                                    maxiter=3000,tol=1e-25)
+                                    maxiter=self.opts.nlin_iter)#,tol=1e-25)
             aux = (Axb(x,d) ** 2).sum()
             return d, aux
 
         def loop_body(args):
             x,xs,count, gn_opt_err, gn_loss,gn_loss_terms,linear_opt_err = args
             d, linea_opt = linear_solver_id(x)
-            print('linea_opt',linea_opt)
-            assert linea_opt < 1e-15, 'linear system is not converging'
+            # assert linea_opt < 1e-8, 'linear system is not converging, optimality error: ' + str(linea_opt)
             x += 1.0 * d
             xs = xs.at[count[0].astype(int)+1,...].set(jax.lax.stop_gradient(x))
             linear_opt_err = linear_opt_err.at[count.astype(int)].set(linea_opt)
