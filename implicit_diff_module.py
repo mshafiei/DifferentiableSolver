@@ -75,7 +75,7 @@ class fft_solver(nn.Module):
     alpha_map: Quad_model
     def setup(self):
         if(self.alpha_type == 'map_2d'):
-            self.alpha = self.alpha_map
+            self.alpha = lambda x: nn.softplus(self.alpha_map(x))
         elif(self.alpha_type == 'scalar'):
             self.alpha = self.param('alpha',
                 implicit_sanity_model.init_hyper,
@@ -98,7 +98,7 @@ class fft_solver(nn.Module):
         gyy = jnp.roll(gy, 1, axis=[1]) - gy
         out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100]
         if(self.alpha_type == 'map_2d'):
-            alpha = self.alpha_map(inpt['net_input'])
+            alpha = self.alpha(inpt['net_input'])
             out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
         return out
         # predict,(gt,grad_x,dx,grad_y,dy) = self(inpt)
@@ -116,7 +116,7 @@ class fft_solver(nn.Module):
         b,h,w,c = inpt['noisy'].shape
         # lambda_d = 0.00000001
         if(self.alpha_type == 'map_2d'):
-            alpha = self.alpha_map(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
+            alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
         elif(self.alpha_type == 'scalar'):
             alpha = self.alpha
         psp = partial(linalg.screen_poisson,alpha)

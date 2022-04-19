@@ -11,7 +11,7 @@ exp_params="\
 --expname fft_map \
 --batch_size 1 \
 --out_features 6 \
---in_features 12 --alpha_thickness 4"
+--in_features 12 --alpha_thickness 4 --store_params"
 
 
 
