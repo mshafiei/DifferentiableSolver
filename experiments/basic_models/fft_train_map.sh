@@ -5,13 +5,13 @@ source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 exp_params="\
 --mode train \
---model fft \
+--model fft_alphamap \
 --TLIST data/train_1600.txt \
 --logdir logger/fft_solver \
---expname fft \
+--expname fft_map \
 --batch_size 1 \
 --out_features 6 \
---in_features 12 --store_params"
+--in_features 12 --alpha_thickness 4"
 
 
 

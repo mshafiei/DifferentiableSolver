@@ -22,7 +22,7 @@ import os
 
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft'],help='Which model to use')
+    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
@@ -32,6 +32,7 @@ def parse_arguments(parser):
     parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural net')
     parser.add_argument('--mode', default='train', type=str,choices=['train','test'],help='Should we train or test the model?')
     parser.add_argument('--debug', default='none', type=str,help='What should we debug')
+    parser.add_argument('--alpha_thickness', default=4, type=int,help='Thickness of layers in alpha map')
     
     return parser
 
@@ -60,7 +61,7 @@ batch,_ = dataset.next_batch(False,0)
 
 im = batch['net_input']
 if(opts.nn_model == 'unet'):
-    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,'softplus')
+    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,'softplus')
 elif(opts.nn_model == 'linear'):
     nn_model = DummyConv(opts.in_features,opts.out_features)
 else:
@@ -73,7 +74,10 @@ elif(opts.model == 'implicit_poisson_model'):
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
 elif(opts.model == 'fft'):
-    diffable_solver = fft_solver(opts=opts, quad_model=nn_model)
+    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None)
+elif(opts.model == 'fft_alphamap'):
+    alpha_model = UNet(opts.in_features,1,opts.bilinear,opts.mode == 'test',opts.group_norm,2,opts.alpha_thickness,'softplus')
+    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='map_2d',alpha_map=alpha_model)
 elif(opts.model == 'dummy'):
     diffable_solver = diff_solver(opts=opts, quad_model=nn.Module())
 else:
@@ -137,25 +141,18 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     if(t is not None):
         t.set_description(mtrcs_str)
     if(display):
-        imgs = visualize_model(params,batch)
+        viz_imgs = visualize_model(params,batch)
         labels = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
-        imgs = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in imgs]
-        # aux['xs'] = [tfu.camera_to_rgb_batch(i/batch['alpha'],batch) for i in aux['xs']]
-        # imgs = [pred,ambient,noisy,flash,*imgs,*aux['xs']]
-        imgs = [pred,ambient,noisy,flash,*imgs]
+        imgs = [pred,ambient,noisy,flash,*viz_imgs]
         labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],
                     mtrcs['mse'][0]),
                     r'$Ground~Truth~(I_{ambient})$',
                     r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],
                     mtrcs_noisy['mse'][0]),
                     r'$Flash~input~(I_{flash})$',
-                    *labels]#,
-                    # *[r'$I^%i$' % i for i in range(opts.nnonlin_iter)] ]
+                    *labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
-        # from cvgutils.nn.jaxUtils import utils
-        # grads = (utils.dx(noisy) + utils.dy(noisy) + utils.dx(flash) + utils.dy(flash)) / 4.
-        # logger.addImage([grads,noisy,flash],['grads','noisy','flash'],'grads',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)

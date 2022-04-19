@@ -71,36 +71,61 @@ class fft_solver(nn.Module):
     """
     opts: Any
     quad_model : Quad_model
+    alpha_type: str
+    alpha_map: Quad_model
     def setup(self):
-        self.alpha = self.param('alpha',
-            implicit_sanity_model.init_hyper,
-            None,
-            jnp.array)
+        if(self.alpha_type == 'map_2d'):
+            self.alpha = self.alpha_map
+        elif(self.alpha_type == 'scalar'):
+            self.alpha = self.param('alpha',
+                implicit_sanity_model.init_hyper,
+                None,
+                jnp.array)
 
     def visualize(self,inpt):
         predict,[] = self(inpt)
+        
         g = self.quad_model(inpt['net_input'])
-        dx = jnp.roll(predict, 1, axis=[1]) - predict
-        dy = jnp.roll(predict, 1, axis=[0]) - predict
-        return [predict,g[...,:3]*0.5+0.5,dx*0.5+0.5,g[...,3:]*0.5+0.5,dy*0.5+0.5]
+        gx = g[...,:3]
+        gy = g[...,3:]
+        # predict = tfu.camera_to_rgb_batch(predict/inpt['alpha'],inpt)
+        dx = jnp.roll(predict, 1, axis=[2]) - predict
+        dy = jnp.roll(predict, 1, axis=[1]) - predict
+
+        dxx = jnp.roll(dx, 1, axis=[2]) - dx
+        dyy = jnp.roll(dy, 1, axis=[1]) - dy
+        gxx = jnp.roll(gx, 1, axis=[2]) - gx
+        gyy = jnp.roll(gy, 1, axis=[1]) - gy
+        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100]
+        if(self.alpha_type == 'map_2d'):
+            alpha = self.alpha_map(inpt['net_input'])
+            out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
+        return out
         # predict,(gt,grad_x,dx,grad_y,dy) = self(inpt)
         # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
 
     def labels(self):
-        return ['$I$',r'$Unet output (g^x)$',r'$\nabla_x I$',r'$Unet output (g^y)$',r'$\nabla_y I$']
+        out = [r'$I$',r'$Unet output (g^x_x)$',r'$I_{xx}$',r'$Unet output (g^y_y)$',r'$I_{yy}$']
+        if(self.alpha_type == 'map_2d'):
+            out.append('$\lambda$')
+        return out
         # return [r'$I$',r'$I_{ambient}$',r'$g^x$',r'$\nabla_x I$',r'$g^y$',r'$\nabla_y I$']
         
     def __call__(self,inpt):
         g = self.quad_model(inpt['net_input'])
-        # lambda_d = 0.00000001
-        psp = partial(linalg.screen_poisson,self.alpha)
         b,h,w,c = inpt['noisy'].shape
+        # lambda_d = 0.00000001
+        if(self.alpha_type == 'map_2d'):
+            alpha = self.alpha_map(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
+        elif(self.alpha_type == 'scalar'):
+            alpha = self.alpha
+        psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
         dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
         dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
         func = map(psp,img,dx,dy)
-        dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
-        dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
+        # dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
+        # dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
         return jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1), []
         # noisy = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/noisy.png')
         # gt = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/gt.png')
