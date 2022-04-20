@@ -11,6 +11,7 @@ from jax import random
 import cvgutils.Linalg as linalg
 import cvgutils.Image as cvgim
 from functools import partial
+import cvgutils.nn.jaxUtils.utils as jaxutils
 #diff solve(module)
 #setup()
 #  self.quadratic_model with primal parameters
@@ -83,9 +84,9 @@ class fft_solver(nn.Module):
                 jnp.array)
 
     def visualize(self,inpt):
-        predict,[] = self(inpt)
+        predict,g = self.fft(inpt)
         
-        g = self.quad_model(inpt['net_input'])
+        # g = self.quad_model(inpt['net_input'])
         gx = g[...,:3]
         gy = g[...,3:]
         # predict = tfu.camera_to_rgb_batch(predict/inpt['alpha'],inpt)
@@ -96,7 +97,10 @@ class fft_solver(nn.Module):
         dyy = jnp.roll(dy, 1, axis=[1]) - dy
         gxx = jnp.roll(gx, 1, axis=[2]) - gx
         gyy = jnp.roll(gy, 1, axis=[1]) - gy
-        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100]
+        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,
+                jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100,
+                jnp.abs(gx),jnp.abs(dx/inpt['alpha'])*100,
+                jnp.abs(gy),jnp.abs(dy/inpt['alpha'])*100,]
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
             out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
@@ -105,13 +109,48 @@ class fft_solver(nn.Module):
         # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
 
     def labels(self):
-        out = [r'$I$',r'$Unet output (g^x_x)$',r'$I_{xx}$',r'$Unet output (g^y_y)$',r'$I_{yy}$']
+        out = [r'$I$',r'$Unet~output (g^x_x) \times 1000$',r'$I_{xx} \times 100$',r'$Unet~output (g^y_y) \times 1000$',r'$I_{yy} \times 100$',
+        r'$Unet~output (g^x) \times 1.$',r'$I_{x} \times 100$',r'$Unet~output (g^y) \times 1.$',r'$I_{y} \times 100$']
         if(self.alpha_type == 'map_2d'):
             out.append('$\lambda$')
         return out
         # return [r'$I$',r'$I_{ambient}$',r'$g^x$',r'$\nabla_x I$',r'$g^y$',r'$\nabla_y I$']
         
+        
+        
     def __call__(self,inpt):
+        fft_solution,g = self.fft(inpt)
+        aux = {}
+        fft_solution = jnp.clip(tfu.camera_to_rgb_batch(fft_solution/inpt['alpha'],inpt),0,1)
+        ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
+        gx = g[...,:3]
+        gy = g[...,3:]
+        loss_val = 0.
+        aux['pred'] = fft_solution
+        if(self.opts.sse_weight > 0):
+            aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()
+            loss_val += self.opts.sse_weight * aux['sse_loss']
+
+        if(self.opts.curl_1 > 0):
+            aux['curl_1'] = ((jaxutils.dx(gy) + jaxutils.dy(gx)) ** 2).sum()
+            loss_val += self.opts.curl_1 * aux['curl_1']
+
+        if(self.opts.div_1 > 0):
+            aux['div_1'] = ((jaxutils.dx(gx) + jaxutils.dy(gy)) ** 2).sum()
+            loss_val += self.opts.div_1 * aux['div_1']
+
+        if(self.opts.div_2 > 0):
+            aux['div_2'] = ((jaxutils.dxx(gx) + jaxutils.dyx(gy)) ** 2 + (jaxutils.dxy(gx) + jaxutils.dyy(gy)) ** 2).sum()
+            loss_val += self.opts.div_2 * aux['div_2']
+            
+        if(self.opts.curl_2 > 0):
+            aux['curl_2'] = ((jaxutils.dyx(gx) + jaxutils.dxx(gy)) ** 2 + (jaxutils.dyy(gx) + jaxutils.dxy(gy)) ** 2).sum()
+            loss_val += self.opts.curl_2 * aux['curl_2']
+
+        return loss_val, aux
+
+
+    def fft(self,inpt):
         g = self.quad_model(inpt['net_input'])
         b,h,w,c = inpt['noisy'].shape
         # lambda_d = 0.00000001
@@ -126,7 +165,7 @@ class fft_solver(nn.Module):
         func = map(psp,img,dx,dy)
         # dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
         # dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
-        return jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1), []
+        return jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1), g
         # noisy = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/noisy.png')
         # gt = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/gt.png')
 
@@ -255,7 +294,7 @@ class fnf_regularizer(Quad_model):
         r3 = tfm(utils.dy(primal_param)) - tfm(g[...,3:])
         alpha = self.alpha(inpt['net_input']).reshape(-1)      
         out = jnp.concatenate(( r1.reshape(-1), alpha * r2.reshape(-1), alpha * r3.reshape(-1)),axis=0)
-        return out * avg_weight
+        return out * avg_weight,{}
 
 class implicit_sanity_model(Quad_model):
     unet: unet_model.UNet
@@ -291,7 +330,7 @@ class implicit_sanity_model(Quad_model):
     def __call__(self,primal_param,inpt):
         r1, r2 = self.terms(primal_param,inpt)
         out = jnp.concatenate((r1, r2),axis=0)
-        return out
+        return out,{}
     
     def visualize(self,primal_param,inpt):
         tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
@@ -336,7 +375,7 @@ class implicit_poisson_model(Quad_model):
     def __call__(self,primal_param,inpt):
         r1, r2, r3 = self.terms(primal_param,inpt)
         out = jnp.concatenate((r1, r2, r3),axis=0)
-        return out
+        return out,{}
     
     def visualize(self,primal_param,inpt):
         tfm = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
@@ -387,4 +426,4 @@ class screen_poisson(Quad_model):
     def __call__(self,primal_param,inpt):
         r1, r2, r3 = self.terms(primal_param,inpt)
         out = jnp.concatenate((r1, r2, r3),axis=0)
-        return out
+        return out,{}

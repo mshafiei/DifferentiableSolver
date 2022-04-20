@@ -19,6 +19,7 @@ from flax import linen as nn
 import deepfnf_utils.utils as ut
 import time
 import os
+import cvgutils.nn.jaxUtils.utils as jaxutils
 
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
@@ -33,6 +34,11 @@ def parse_arguments(parser):
     parser.add_argument('--mode', default='train', type=str,choices=['train','test'],help='Should we train or test the model?')
     parser.add_argument('--debug', default='none', type=str,help='What should we debug')
     parser.add_argument('--alpha_thickness', default=4, type=int,help='Thickness of layers in alpha map')
+    parser.add_argument('--sse_weight', default=1., type=float,help='Weight of the Sum Squared Error loss')
+    parser.add_argument('--curl_1', default=0., type=float,help='First order curl regularizer')
+    parser.add_argument('--curl_2', default=0., type=float,help='Second order curl regularizer')
+    parser.add_argument('--div_1', default=0., type=float,help='First order Div. regularizer')
+    parser.add_argument('--div_2', default=0., type=float,help='Second order Div. regularizer')
     
     return parser
 
@@ -96,15 +102,8 @@ apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
 params = diffable_solver.init(rng,batch)
 pred, aux = apply(params,batch)
 
-# @jax.jit
-def loss(params,batch):
-    pred, aux = apply(params,batch)
-    pred = jnp.clip(tfu.camera_to_rgb_batch(pred/batch['alpha'],batch),0,1)
-    ambient = jnp.clip(tfu.camera_to_rgb_batch(batch['ambient'],batch),0,1)
 
-    return ((ambient - pred) ** 2).sum(), aux
-
-# @jax.jit
+@jax.jit
 def metrics(pred,gt):
     pred = jnp.clip(pred,0,1)
     gt = jnp.clip(gt,0,1)
@@ -113,13 +112,13 @@ def metrics(pred,gt):
     return {'mse':mse,'psnr':psnr}
 
 
-# @jax.jit
+@jax.jit
 def update(params_p,state_p,batch_p):
     params_p, state_p = solver.update(params_p, state_p,batch=batch_p)
     return params_p, state_p
 
 data = logger.load_params()
-solver = OptaxSolver(fun=loss, opt=optax.adam(opts.lr),has_aux=True)
+solver = OptaxSolver(fun=apply, opt=optax.adam(opts.lr),has_aux=True)
 state = solver.init_state(params)
 start_idx=0
 if(data is not None):
@@ -131,8 +130,8 @@ if(data is not None):
 
 
 def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
-    pred,aux = apply(params,batch)
-    pred = tfu.camera_to_rgb_batch(pred/batch['alpha'],batch)
+    _,aux = apply(params,batch)
+    pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
     mtrcs = metrics(pred,ambient)
@@ -157,6 +156,11 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     if(save_params):
         logger.save_params(params,batch,i)
     mtrcs = {k:v[0] for k,v in mtrcs.items()}
+    if('div_1'in aux.keys()):
+        mtrcs.update({'div_1':aux['div_1']})
+    if('curl_1'in aux.keys()):
+        mtrcs.update({'curl_1':aux['curl_1']})
+
     logger.addMetrics(mtrcs,mode=mode)
     # termNames = diffable_solver.termLabels()
     # for step in range(opts.nnonlin_iter):
@@ -184,6 +188,7 @@ if(opts.mode == 'train'):
             save_params = i % opts.save_param_freq == 0
             if(val_iter):
                 batch,_ = dataset.next_batch(True,i)
+                _,aux = apply(params,batch)
                 eval_visualize(params,batch,logger,'val',True,False)
 
             batch,_ = dataset.next_batch(False,i)
@@ -221,7 +226,8 @@ elif(opts.mode == 'test'):
                 net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
                 batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
-                denoise = apply(params,batch)
+                _,aux = apply(params,batch)
+                denoise = aux['pred']
                 mt = eval_visualize(params,batch,logger,'test', c % 10 == 0 ,False)
                 logger.takeStep()
                 mtrcs.append(mt)
