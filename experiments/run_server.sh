@@ -5,7 +5,7 @@ meml=22G
 memr=20G
 
 server_path=/mshvol2/users/mohammad/optimization/DifferentiableSolver
-cmd1="python deploy --name $2 --ngpus $ngpus --cpu $ncpus --meml $meml --memr $memr --type job_deeplearning --cmd"
+cmd1="python deploy --key kub --name $2 --ngpus $ngpus --cpu $ncpus --meml $meml --memr $memr --type job_deeplearning --cmd"
 cmd2="$server_path/run.sh $1"
 echo $cmd1 "$cmd2"
 

@@ -226,12 +226,9 @@ elif(opts.mode == 'test'):
                 net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
                 batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
-                _,aux = apply(params,batch)
-                denoise = aux['pred']
                 mt = eval_visualize(params,batch,logger,'test', c % 10 == 0 ,False)
                 logger.takeStep()
                 mtrcs.append(mt)
-                print('psnr so far ',np.mean([i['psnr'] for i in mtrcs]))
             except:
                 pass
         

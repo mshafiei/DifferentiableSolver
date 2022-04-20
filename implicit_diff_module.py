@@ -56,12 +56,19 @@ class direct_model(nn.Module):
         return parser
     
     def visualize(self,inpt):
+        # _,aux = self(inpt)
         return []
-        # predict = self(inpt)
-        # return self.model.visualize(predict[0],inpt)
 
     def __call__(self,inpt):
-        return self.quad_model(inpt['net_input']), []
+        pred = self.quad_model(inpt['net_input'])
+        aux = {}
+        aux['pred'] = pred
+        solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
+        ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
+        aux['sse_loss'] = ((ambient - solution) ** 2).sum()
+        loss_val = self.opts.sse_weight * aux['sse_loss']
+
+        return loss_val, aux
 
     def labels(self):
         return []

@@ -4,7 +4,7 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 exp_params="\
---mode train \
+--mode test \
 --model fft_alphamap \
 --TLIST data/train_1600.txt \
 --logdir logger/fft_solver \
@@ -15,7 +15,7 @@ exp_params="\
 
 
 
-name=msh-fft-solver-alphamap
+name=msh-fft-solver-alphamap-test
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 # ./experiments/run_local.sh "$scriptFn"
