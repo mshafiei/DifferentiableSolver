@@ -119,14 +119,14 @@ class fft_solver(nn.Module):
         
         
     def __call__(self,inpt):
-        fft_solution,g = self.fft(inpt)
+        pred,g = self.fft(inpt)
         aux = {}
-        fft_solution = jnp.clip(tfu.camera_to_rgb_batch(fft_solution/inpt['alpha'],inpt),0,1)
+        fft_solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
         ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
         gx = g[...,:3]
         gy = g[...,3:]
         loss_val = 0.
-        aux['pred'] = fft_solution
+        aux['pred'] = pred
         if(self.opts.sse_weight > 0):
             aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()
             loss_val += self.opts.sse_weight * aux['sse_loss']
