@@ -174,8 +174,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     
 
 start_time = time.time()
-pred,aux = apply(params,batch)
-metrics(pred/batch['alpha'],batch['ambient'])
+_,aux = apply(params,batch)
+metrics(aux['pred']/batch['alpha'],batch['ambient'])
 visualize_model(params,batch)
 eval_visualize(params,batch,logger,'val',True,False)
 if(opts.mode == 'train'):
