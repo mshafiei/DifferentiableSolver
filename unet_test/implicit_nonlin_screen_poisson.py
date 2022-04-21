@@ -20,6 +20,7 @@ import deepfnf_utils.utils as ut
 import time
 import os
 import cvgutils.nn.jaxUtils.utils as jaxutils
+import functools
 
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
@@ -98,6 +99,7 @@ visualize_model = jax.jit(lambda params,batch :diffable_solver.apply(params, bat
 apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
 # visualize_model = (lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
 # apply = (lambda params,batch :diffable_solver.apply(params,batch))
+ssim_fn = jax.jit(functools.partial(jaxutils.compute_ssim, max_val=1.))
 
 params = diffable_solver.init(rng,batch)
 pred, aux = apply(params,batch)
@@ -107,9 +109,10 @@ pred, aux = apply(params,batch)
 def metrics(pred,gt):
     pred = jnp.clip(pred,0,1)
     gt = jnp.clip(gt,0,1)
+    ssim = ssim_fn(pred,gt)
     mse = ((gt - pred) ** 2).mean([1,2,3])
     psnr = -10. * jnp.log10(mse) / jnp.log10(10.)
-    return {'mse':mse,'psnr':psnr}
+    return {'mse':mse,'psnr':psnr,'ssim':ssim}
 
 
 @jax.jit
@@ -234,8 +237,9 @@ elif(opts.mode == 'test'):
         
         psnr = np.mean([i['psnr'] for i in mtrcs])
         mse = np.mean([i['mse'] for i in mtrcs])
+        ssim = np.mean([i['ssim'] for i in mtrcs])
 
-        errors['Level %d' % (4 - k)] = 'PSNR: %.3f, SSIM: %.4f' % (psnr,mse)
+        errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
     logger.addDict(errors,'test_errors',opts.mode)
 else:
     print('Unknown mode ',opts.mode)
