@@ -11,12 +11,12 @@ exp_params="\
 --expname unet-generalize-nojitter-1bsz-tmp \
 --batch_size 1 \
 --out_features 3 \
---in_features 12"
+--in_features 12 --store_params"
 
 
 
 name=msh-deep-nonlin-unet-generalize-nojitter-fixed2-test2
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn" "$name"
-./experiments/run_server.sh "$scriptFn" "$name"
+./experiments/run_local.sh "$scriptFn" "$name"
+# ./experiments/run_server.sh "$scriptFn" "$name"

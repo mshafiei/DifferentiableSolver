@@ -7,6 +7,7 @@ exp_params="\
 --mode test \
 --model fft \
 --TLIST data/train_1600.txt \
+--TESTPATH data/testset \
 --logdir logger/fft_solver \
 --expname fft \
 --batch_size 1 \
@@ -18,5 +19,5 @@ exp_params="\
 name=msh-fft-solver-test
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name"

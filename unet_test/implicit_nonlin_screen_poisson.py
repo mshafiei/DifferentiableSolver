@@ -21,7 +21,7 @@ import time
 import os
 import cvgutils.nn.jaxUtils.utils as jaxutils
 import functools
-
+import deepfnf_utils.np_utils as np_utils
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
     choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap'],help='Which model to use')
@@ -99,19 +99,22 @@ visualize_model = jax.jit(lambda params,batch :diffable_solver.apply(params, bat
 apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
 # visualize_model = (lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
 # apply = (lambda params,batch :diffable_solver.apply(params,batch))
-ssim_fn = jax.jit(functools.partial(jaxutils.compute_ssim, max_val=1.))
+ssim_fn = jax.jit(jaxutils.ssim)
+# ssim_fn = jax.jit(functools.partial(jaxutils.compute_ssim, max_val=1.))
 
 params = diffable_solver.init(rng,batch)
 pred, aux = apply(params,batch)
 
 
-@jax.jit
-def metrics(pred,gt):
-    pred = jnp.clip(pred,0,1)
-    gt = jnp.clip(gt,0,1)
-    ssim = ssim_fn(pred,gt)
-    mse = ((gt - pred) ** 2).mean([1,2,3])
-    psnr = -10. * jnp.log10(mse) / jnp.log10(10.)
+# @jax.jit
+def metrics(preds,gts):
+    mse, psnr, ssim = [], [], []
+    for pred,gt in zip(preds,gts):
+        pred = np.clip(pred,0,1)
+        gt = np.clip(gt,0,1)
+        mse.append(np_utils.get_mse(pred,gt))
+        psnr.append(np_utils.get_psnr(pred,gt))
+        ssim.append(np_utils.get_ssim(pred,gt))
     return {'mse':mse,'psnr':psnr,'ssim':ssim}
 
 
@@ -137,8 +140,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
-    mtrcs = metrics(pred,ambient)
-    mtrcs_noisy = metrics(noisy,ambient)
+    mtrcs = metrics(np.array(pred),np.array(ambient))
+    mtrcs_noisy = metrics(np.array(noisy[0]),np.array(ambient[0]))
     mtrcs_str = ''.join([' %s:%.5f' % (k,v[0]) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
@@ -175,7 +178,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
 
 start_time = time.time()
 _,aux = apply(params,batch)
-metrics(aux['pred']/batch['alpha'],batch['ambient'])
+metrics(np.array(aux['pred'][0]/batch['alpha'][0]),np.array(batch['ambient'][0]))
 visualize_model(params,batch)
 eval_visualize(params,batch,logger,'val',True,False)
 if(opts.mode == 'train'):
@@ -208,7 +211,10 @@ elif(opts.mode == 'test'):
             try:
                 data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
                 keys = [jax.random.PRNGKey(c*10 + i) for i in range(10)]
-                alpha = data['alpha'][None, None, None, None]
+                if(len(data['alpha'].shape) == 1):
+                    alpha = data['alpha'][None, None, None, None]
+                else:
+                    alpha = data['alpha']
                 ambient = data['ambient']
                 dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'],keys[0], alpha=alpha)
                 dimmed_warped_ambient, _ = tfu.dim_image_jax(
@@ -240,6 +246,7 @@ elif(opts.mode == 'test'):
         ssim = np.mean([i['ssim'] for i in mtrcs])
 
         errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
+        print(errors['Level %d' % (4 - k)])
     logger.addDict(errors,'test_errors',opts.mode)
 else:
     print('Unknown mode ',opts.mode)
