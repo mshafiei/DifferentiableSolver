@@ -7,7 +7,7 @@ exp_params="\
 --mode test \
 --model fft \
 --TLIST data/train_1600.txt \
---TESTPATH data/testset \
+--TESTPATH data/testset_nojitter \
 --logdir logger/fft_solver \
 --expname fft \
 --batch_size 1 \
