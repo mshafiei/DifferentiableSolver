@@ -107,15 +107,16 @@ pred, aux = apply(params,batch)
 
 
 # @jax.jit
-def metrics(preds,gts):
-    mse, psnr, ssim = [], [], []
+def metrics(preds,gts,ignorelist=''):
+    mtrcs = {}
     for pred,gt in zip(preds,gts):
-        pred = np.clip(pred,0,1)
-        gt = np.clip(gt,0,1)
-        mse.append(np_utils.get_mse(pred,gt))
-        psnr.append(np_utils.get_psnr(pred,gt))
-        ssim.append(np_utils.get_ssim(pred,gt))
-    return {'mse':mse,'psnr':psnr,'ssim':ssim}
+        pred = jnp.clip(pred,0,1)
+        gt = jnp.clip(gt,0,1)
+        mtrcs.update({'mse':np_utils.get_mse_jax(pred,gt)})
+        mtrcs.update({'psnr':np_utils.get_psnr_jax(pred,gt)})
+        if(not('ssim' in ignorelist)):
+            mtrcs.update({'ssim':np_utils.get_ssim(np.array(pred),np.array(gt))})
+    return mtrcs
 
 
 @jax.jit
@@ -135,14 +136,15 @@ if(data is not None):
     print('Parameters loaded successfully')
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
+def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=None):
     _,aux = apply(params,batch)
+
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
-    mtrcs = metrics(np.array(pred),np.array(ambient))
-    mtrcs_noisy = metrics(np.array(noisy[0]),np.array(ambient[0]))
-    mtrcs_str = ''.join([' %s:%.5f' % (k,v[0]) for k,v in mtrcs.items()])
+    mtrcs = metrics(pred,ambient,ignorelist)
+    mtrcs_noisy = metrics(noisy,ambient,ignorelist)
+    mtrcs_str = ''.join([' %s:%.5f' % (k,v) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
     if(display):
@@ -150,18 +152,18 @@ def eval_visualize(params,batch,logger,mode,display,save_params,t=None):
         labels = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
         imgs = [pred,ambient,noisy,flash,*viz_imgs]
-        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'][0],
-                    mtrcs['mse'][0]),
+        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],
+                    mtrcs['mse']),
                     r'$Ground~Truth~(I_{ambient})$',
-                    r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'][0],
-                    mtrcs_noisy['mse'][0]),
+                    r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'],
+                    mtrcs_noisy['mse']),
                     r'$Flash~input~(I_{flash})$',
                     *labels]
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)
-    mtrcs = {k:v[0] for k,v in mtrcs.items()}
+    mtrcs = {k:v for k,v in mtrcs.items()}
     if('div_1'in aux.keys()):
         mtrcs.update({'div_1':aux['div_1']})
     if('curl_1'in aux.keys()):
@@ -180,7 +182,7 @@ start_time = time.time()
 _,aux = apply(params,batch)
 metrics(np.array(aux['pred'][0]/batch['alpha'][0]),np.array(batch['ambient'][0]))
 visualize_model(params,batch)
-eval_visualize(params,batch,logger,'val',True,False)
+eval_visualize(params,batch,logger,'val',True,False,ignorelist='ssim')
 if(opts.mode == 'train'):
     #compile
     update(params,state,batch)
@@ -199,7 +201,7 @@ if(opts.mode == 'train'):
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
-            eval_visualize(params,batch,logger,'train',train_display,save_params,t)
+            eval_visualize(params,batch,logger,'train',train_display,save_params,ignorelist='ssim',t=t)
             logger.takeStep()
 elif(opts.mode == 'test'):
     end_time = time.time()
