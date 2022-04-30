@@ -177,7 +177,7 @@ class fft_solver(nn.Module):
             alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
         elif(self.alpha_type == 'scalar'):
             alpha = self.alpha
-        psp = partial(linalg.screen_poisson,0.000001)
+        psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
         if(self.fft_model == 'fft_image_grad'):
             dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)
