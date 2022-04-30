@@ -203,6 +203,7 @@ if(opts.mode == 'train'):
             params, state = update(params,state,batch)
             eval_visualize(params,batch,logger,'train',train_display,save_params,ignorelist='ssim',t=t)
             logger.takeStep()
+            
 elif(opts.mode == 'test'):
     end_time = time.time()
     print('compile time ',end_time - start_time)

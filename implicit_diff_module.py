@@ -109,10 +109,12 @@ class fft_solver(nn.Module):
         dyy = utils.dy(dy)
         gxx = utils.dx(gx)
         gyy = utils.dy(gy)
-        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,
-                jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100,
-                jnp.abs(gx),jnp.abs(dx/inpt['alpha'])*100,
-                jnp.abs(gy),jnp.abs(dy/inpt['alpha'])*100,]
+        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx)*1000,
+                jnp.abs(gyy)*1000,jnp.abs(dyy)*1000,
+                jnp.abs(gx)*1000,jnp.abs(dx)*1000,
+                jnp.abs(gy)*1000,jnp.abs(dy)*1000,]
+        if(self.fft_model == 'fft_image_grad'):
+            out += [g*1000]
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
             out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
@@ -121,8 +123,10 @@ class fft_solver(nn.Module):
         # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
 
     def labels(self):
-        out = [r'$I$',r'$Unet~output (g^x_x) \times 1000$',r'$I_{xx} \times 100$',r'$Unet~output (g^y_y) \times 1000$',r'$I_{yy} \times 100$',
-        r'$Unet~output (g^x) \times 1.$',r'$I_{x} \times 100$',r'$Unet~output (g^y) \times 1.$',r'$I_{y} \times 100$']
+        out = [r'$I$',r'$Unet~output (g^x_x) \times 1000$',r'$I_{xx} \times 1000$',r'$Unet~output (g^y_y) \times 1000$',r'$I_{yy} \times 1000$',
+        r'$Unet~output (g^x) \times 1000.$',r'$I_{x} \times 1000$',r'$Unet~output (g^y) \times 1000.$',r'$I_{y} \times 1000$']
+        if(self.fft_model == 'fft_image_grad'):
+            out += ['$Unet output \times 1000$']
         if(self.alpha_type == 'map_2d'):
             out.append('$\lambda$')
         return out
@@ -162,15 +166,18 @@ class fft_solver(nn.Module):
         return loss_val, aux
 
 
-    def fft(self,inpt):
-        g = self.quad_model(inpt['net_input'])
+    def fft(self,inpt,inim=None):
+        if(inim is None):
+            g = self.quad_model(inpt['net_input'])
+        else:
+            g = inim
         b,h,w,c = inpt['noisy'].shape
         # lambda_d = 0.00000001
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
         elif(self.alpha_type == 'scalar'):
             alpha = self.alpha
-        psp = partial(linalg.screen_poisson,alpha)
+        psp = partial(linalg.screen_poisson,0.000001)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
         if(self.fft_model == 'fft_image_grad'):
             dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)

@@ -16,7 +16,7 @@ exp_params="\
 
 
 
-name=msh-fft-solver-train
+name=msh-fft-solver-train-grad-image1
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 ./experiments/run_local.sh "$scriptFn"
