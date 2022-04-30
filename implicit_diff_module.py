@@ -81,6 +81,7 @@ class fft_solver(nn.Module):
     quad_model : Quad_model
     alpha_type: str
     alpha_map: Quad_model
+    fft_model: str
     def setup(self):
         if(self.alpha_type == 'map_2d'):
             self.alpha = lambda x: nn.softplus(self.alpha_map(x))
@@ -94,16 +95,20 @@ class fft_solver(nn.Module):
         predict,g = self.fft(inpt)
         
         # g = self.quad_model(inpt['net_input'])
-        gx = g[...,:3]
-        gy = g[...,3:]
+        if(self.fft_model == 'fft_image_grad'):
+            gx = utils.dx(g)
+            gy = utils.dy(g)
+        if(self.fft_model == 'fft'):
+            gx = g[...,:3]
+            gy = g[...,3:]
         # predict = tfu.camera_to_rgb_batch(predict/inpt['alpha'],inpt)
-        dx = jnp.roll(predict, 1, axis=[2]) - predict
-        dy = jnp.roll(predict, 1, axis=[1]) - predict
+        dx = utils.dx(predict)
+        dy = utils.dy(predict)
 
-        dxx = jnp.roll(dx, 1, axis=[2]) - dx
-        dyy = jnp.roll(dy, 1, axis=[1]) - dy
-        gxx = jnp.roll(gx, 1, axis=[2]) - gx
-        gyy = jnp.roll(gy, 1, axis=[1]) - gy
+        dxx = utils.dx(dx)
+        dyy = utils.dy(dy)
+        gxx = utils.dx(gx)
+        gyy = utils.dy(gy)
         out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx/inpt['alpha'])*100,
                 jnp.abs(gyy)*1000,jnp.abs(dyy/inpt['alpha'])*100,
                 jnp.abs(gx),jnp.abs(dx/inpt['alpha'])*100,
@@ -167,8 +172,12 @@ class fft_solver(nn.Module):
             alpha = self.alpha
         psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
-        dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
-        dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
+        if(self.fft_model == 'fft_image_grad'):
+            dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)
+            dy = utils.dy(g).transpose(0,3,1,2).reshape(-1,h,w)
+        if(self.fft_model == 'fft'):
+            dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
+            dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
         func = map(psp,img,dx,dy)
         # dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
         # dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
