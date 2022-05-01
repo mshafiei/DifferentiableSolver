@@ -93,7 +93,7 @@ class fft_solver(nn.Module):
 
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
-        
+
         # g = self.quad_model(inpt['net_input'])
         if(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
@@ -114,7 +114,7 @@ class fft_solver(nn.Module):
                 jnp.abs(gx)*1000,jnp.abs(dx)*1000,
                 jnp.abs(gy)*1000,jnp.abs(dy)*1000,]
         if(self.fft_model == 'fft_image_grad'):
-            out += [g*1000]
+            out += [g]
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
             out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
@@ -123,10 +123,11 @@ class fft_solver(nn.Module):
         # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
 
     def labels(self):
+        
         out = [r'$I$',r'$Unet~output (g^x_x) \times 1000$',r'$I_{xx} \times 1000$',r'$Unet~output (g^y_y) \times 1000$',r'$I_{yy} \times 1000$',
         r'$Unet~output (g^x) \times 1000.$',r'$I_{x} \times 1000$',r'$Unet~output (g^y) \times 1000.$',r'$I_{y} \times 1000$']
         if(self.fft_model == 'fft_image_grad'):
-            out += ['$Unet output \times 1000$']
+            out += ['$Unet output \times 1.$']
         if(self.alpha_type == 'map_2d'):
             out.append('$\lambda$')
         return out
@@ -139,10 +140,15 @@ class fft_solver(nn.Module):
         aux = {}
         fft_solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
         ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
-        gx = g[...,:3]
-        gy = g[...,3:]
+        if(self.fft_model == 'fft_image_grad'):
+            gx = utils.dx(g)
+            gy = utils.dy(g)
+        if(self.fft_model == 'fft'):
+            gx = g[...,:3]
+            gy = g[...,3:]
         loss_val = 0.
         aux['pred'] = pred
+        sg = lambda x: jax.lax.stop_gradient(x)
         if(self.opts.sse_weight > 0):
             aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()
             loss_val += self.opts.sse_weight * aux['sse_loss']
@@ -150,10 +156,15 @@ class fft_solver(nn.Module):
         if(self.opts.curl_1 > 0):
             aux['curl_1'] = ((jaxutils.dx(gy) + jaxutils.dy(gx)) ** 2).sum()
             loss_val += self.opts.curl_1 * aux['curl_1']
+        # else:
+        #     aux['curl_1'] = ((jaxutils.dx(sg(gy)) + jaxutils.dy(sg(gx))) ** 2).sum()
+
 
         if(self.opts.div_1 > 0):
             aux['div_1'] = ((jaxutils.dx(gx) + jaxutils.dy(gy)) ** 2).sum()
             loss_val += self.opts.div_1 * aux['div_1']
+        # else:
+        #     aux['div_1'] = ((jaxutils.dx(sg(gx)) + jaxutils.dy(sg(gy))) ** 2).sum()
 
         if(self.opts.div_2 > 0):
             aux['div_2'] = ((jaxutils.dxx(gx) + jaxutils.dyx(gy)) ** 2 + (jaxutils.dxy(gx) + jaxutils.dyy(gy)) ** 2).sum()

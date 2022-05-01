@@ -159,7 +159,11 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
                     mtrcs_noisy['mse']),
                     r'$Flash~input~(I_{flash})$',
                     *labels]
-        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode)
+        if('alpha' in params['params'].keys()):
+            strlambda = params['params']['alpha']
+        else:
+            strlambda = 'N/A'
+        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s$'%strlambda)
 
     if(save_params):
         logger.save_params(params,batch,i)
@@ -168,7 +172,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
         mtrcs.update({'div_1':aux['div_1']})
     if('curl_1'in aux.keys()):
         mtrcs.update({'curl_1':aux['curl_1']})
-
+    if('alpha' in params['params'].keys()):
+        mtrcs.update({'lambda':params['params']['alpha']})
     logger.addMetrics(mtrcs,mode=mode)
     # termNames = diffable_solver.termLabels()
     # for step in range(opts.nnonlin_iter):
@@ -201,6 +206,8 @@ if(opts.mode == 'train'):
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
+            if('alpha' in params['params'].keys()):
+                print('alpha : ', params['params']['alpha'])
             eval_visualize(params,batch,logger,'train',train_display,save_params,ignorelist='ssim',t=t)
             logger.takeStep()
             
