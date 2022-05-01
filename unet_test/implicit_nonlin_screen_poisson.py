@@ -82,7 +82,7 @@ elif(opts.model == 'implicit_poisson_model'):
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
 elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz'):
-    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,max_delta=opts.max_delta)
+    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,min_delta=opts.min_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,opts.mode == 'test',opts.group_norm,2,opts.alpha_thickness,'softplus')
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='map_2d',alpha_map=alpha_model)
@@ -165,7 +165,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
         else:
             strlambda = 'N/A'
         if('delta' in params['params'].keys()):
-            strdelta = params['params']['delta']
+            strdelta = nn.softplus(params['params']['delta'])
         else:
             strdelta = 'N/A'
         logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
@@ -180,7 +180,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
     if('alpha' in params['params'].keys()):
         mtrcs.update({'lambda':params['params']['alpha']})
     if('delta' in params['params'].keys()):
-        mtrcs.update({'delta':params['params']['delta']})
+        mtrcs.update({'delta':nn.softplus(params['params']['delta'])})
     logger.addMetrics(mtrcs,mode=mode)
     # termNames = diffable_solver.termLabels()
     # for step in range(opts.nnonlin_iter):

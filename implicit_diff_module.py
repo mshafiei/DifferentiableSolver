@@ -82,10 +82,10 @@ class fft_solver(nn.Module):
     alpha_type: str
     alpha_map: Quad_model
     fft_model: str
-    max_delta: float
+    min_delta: float
     @staticmethod
     def parse_arguments(parser):
-        parser.add_argument('--max_delta', type=float, default=0.00001, help='maximum value for initializing delta')
+        parser.add_argument('--min_delta', type=float, default=0.00001, help='maximum value for initializing delta')
         return parser
 
     def setup(self):
@@ -99,9 +99,8 @@ class fft_solver(nn.Module):
         if(self.fft_model == 'fft_helmholz'):
             self.delta = self.param('delta',
                 implicit_sanity_model.init_hyper,
-                None,
-                jnp.array,0,self.max_delta)
-
+                self.min_delta,
+                jnp.array,self.min_delta,0)
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
 
@@ -113,8 +112,8 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            gx = phix - self.delta * ay
-            gy = phiy + self.delta * ax
+            gx = phix - nn.softplus(self.delta) * ay
+            gy = phiy + nn.softplus(self.delta) * ax
         elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
@@ -175,8 +174,8 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            gx = phix - self.delta * ay
-            gy = phiy + self.delta * ax
+            gx = phix - nn.softplus(self.delta) * ay
+            gy = phiy + nn.softplus(self.delta) * ax
         elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
@@ -234,8 +233,8 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            dx = phix - self.delta * ay
-            dy = phiy + self.delta * ax
+            dx = phix - nn.softplus(self.delta) * ay
+            dy = phiy + nn.softplus(self.delta) * ax
             dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
             dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
         elif(self.fft_model == 'fft_image_grad'):
@@ -392,7 +391,10 @@ class implicit_sanity_model(Quad_model):
 
     @staticmethod
     def init_hyper(key,val,dtype,min=0,max=1):
-        rand = random.uniform(key,minval=min,maxval=max)
+        if(val is None):
+            rand = random.uniform(key,minval=min,maxval=max)
+        else:
+            rand = val
         return jnp.array(rand)
 
     def terms(self,primal_param,inpt):
