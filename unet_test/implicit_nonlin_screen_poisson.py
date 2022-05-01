@@ -24,7 +24,7 @@ import functools
 import deepfnf_utils.np_utils as np_utils
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad'],help='Which model to use')
+    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
@@ -49,6 +49,7 @@ parser = parse_arguments(parser)
 parser = Viz.logger.parse_arguments(parser)
 parser = Dataset.parse_arguments(parser)
 parser = diff_solver.parse_arguments(parser)
+parser = fft_solver.parse_arguments(parser)
 parser = UNet.parse_arguments(parser)
 opts = parser.parse_args()
 
@@ -80,8 +81,8 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
-elif(opts.model == 'fft' or opts.model == 'fft_image_grad'):
-    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model)
+elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz'):
+    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,max_delta=opts.max_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,opts.mode == 'test',opts.group_norm,2,opts.alpha_thickness,'softplus')
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='map_2d',alpha_map=alpha_model)
@@ -163,7 +164,11 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
             strlambda = params['params']['alpha']
         else:
             strlambda = 'N/A'
-        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s$'%strlambda)
+        if('delta' in params['params'].keys()):
+            strdelta = params['params']['delta']
+        else:
+            strdelta = 'N/A'
+        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
 
     if(save_params):
         logger.save_params(params,batch,i)
@@ -174,6 +179,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
         mtrcs.update({'curl_1':aux['curl_1']})
     if('alpha' in params['params'].keys()):
         mtrcs.update({'lambda':params['params']['alpha']})
+    if('delta' in params['params'].keys()):
+        mtrcs.update({'delta':params['params']['delta']})
     logger.addMetrics(mtrcs,mode=mode)
     # termNames = diffable_solver.termLabels()
     # for step in range(opts.nnonlin_iter):
@@ -206,8 +213,6 @@ if(opts.mode == 'train'):
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
-            if('alpha' in params['params'].keys()):
-                print('alpha : ', params['params']['alpha'])
             eval_visualize(params,batch,logger,'train',train_display,save_params,ignorelist='ssim',t=t)
             logger.takeStep()
             

@@ -82,6 +82,12 @@ class fft_solver(nn.Module):
     alpha_type: str
     alpha_map: Quad_model
     fft_model: str
+    max_delta: float
+    @staticmethod
+    def parse_arguments(parser):
+        parser.add_argument('--max_delta', type=float, default=0.00001, help='maximum value for initializing delta')
+        return parser
+
     def setup(self):
         if(self.alpha_type == 'map_2d'):
             self.alpha = lambda x: nn.softplus(self.alpha_map(x))
@@ -90,17 +96,34 @@ class fft_solver(nn.Module):
                 implicit_sanity_model.init_hyper,
                 None,
                 jnp.array)
+        if(self.fft_model == 'fft_helmholz'):
+            self.delta = self.param('delta',
+                implicit_sanity_model.init_hyper,
+                None,
+                jnp.array,0,self.max_delta)
 
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
 
         # g = self.quad_model(inpt['net_input'])
-        if(self.fft_model == 'fft_image_grad'):
+        if(self.fft_model == 'fft_helmholz'):
+            phi = g[...,:3]
+            a = g[...,3:]
+            phix = utils.dx(phi)
+            phiy = utils.dy(phi)
+            ax = utils.dx(a)
+            ay = utils.dy(a)
+            gx = phix - self.delta * ay
+            gy = phiy + self.delta * ax
+        elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
-        if(self.fft_model == 'fft'):
+        elif(self.fft_model == 'fft'):
             gx = g[...,:3]
             gy = g[...,3:]
+        else:
+            print('Error: no such fft model ', self.fft_model)
+            exit(0)
         # predict = tfu.camera_to_rgb_batch(predict/inpt['alpha'],inpt)
         dx = utils.dx(predict)
         dy = utils.dy(predict)
@@ -113,7 +136,10 @@ class fft_solver(nn.Module):
                 jnp.abs(gyy)*1000,jnp.abs(dyy)*1000,
                 jnp.abs(gx)*1000,jnp.abs(dx)*1000,
                 jnp.abs(gy)*1000,jnp.abs(dy)*1000,]
-        if(self.fft_model == 'fft_image_grad'):
+        
+        if(self.fft_model == 'fft_helmholz'):
+            out += [phix*1000,phiy*1000,ax*1000,ay*1000]
+        elif(self.fft_model == 'fft_image_grad'):
             out += [g]
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
@@ -124,9 +150,11 @@ class fft_solver(nn.Module):
 
     def labels(self):
         
-        out = [r'$I$',r'$Unet~output (g^x_x) \times 1000$',r'$I_{xx} \times 1000$',r'$Unet~output (g^y_y) \times 1000$',r'$I_{yy} \times 1000$',
-        r'$Unet~output (g^x) \times 1000.$',r'$I_{x} \times 1000$',r'$Unet~output (g^y) \times 1000.$',r'$I_{y} \times 1000$']
-        if(self.fft_model == 'fft_image_grad'):
+        out = [r'$I$',r'$Unet~output (g^x_x) \times 1e3$',r'$I_{xx} \times 1e3$',r'$Unet~output (g^y_y) \times 1e3$',r'$I_{yy} \times 1e3$',
+        r'$Unet~output (g^x) \times 1e3.$',r'$I_{x} \times 1e3$',r'$Unet~output (g^y) \times 1e3$',r'$I_{y} \times 1e3$']
+        if(self.fft_model == 'fft_helmholz'):
+            out += [r'$\nabla_x \phi \times1e3$',r'$\nabla_y \phi \times1e3$',r'$\nabla_x a \times1e3$',r'$\nabla_y a \times1e3$']
+        elif(self.fft_model == 'fft_image_grad'):
             out += ['$Unet output \times 1.$']
         if(self.alpha_type == 'map_2d'):
             out.append('$\lambda$')
@@ -140,10 +168,19 @@ class fft_solver(nn.Module):
         aux = {}
         fft_solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
         ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
-        if(self.fft_model == 'fft_image_grad'):
+        if(self.fft_model == 'fft_helmholz'):
+            phi = g[...,:3]
+            a = g[...,3:]
+            phix = utils.dx(phi)
+            phiy = utils.dy(phi)
+            ax = utils.dx(a)
+            ay = utils.dy(a)
+            gx = phix - self.delta * ay
+            gy = phiy + self.delta * ax
+        elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
-        if(self.fft_model == 'fft'):
+        elif(self.fft_model == 'fft'):
             gx = g[...,:3]
             gy = g[...,3:]
         loss_val = 0.
@@ -190,10 +227,21 @@ class fft_solver(nn.Module):
             alpha = self.alpha
         psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
-        if(self.fft_model == 'fft_image_grad'):
+        if(self.fft_model == 'fft_helmholz'):
+            phi = g[...,:3]
+            a = g[...,3:]
+            phix = utils.dx(phi)
+            phiy = utils.dy(phi)
+            ax = utils.dx(a)
+            ay = utils.dy(a)
+            dx = phix - self.delta * ay
+            dy = phiy + self.delta * ax
+            dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
+            dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
+        elif(self.fft_model == 'fft_image_grad'):
             dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)
             dy = utils.dy(g).transpose(0,3,1,2).reshape(-1,h,w)
-        if(self.fft_model == 'fft'):
+        elif(self.fft_model == 'fft'):
             dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
             dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
         func = map(psp,img,dx,dy)
@@ -343,8 +391,8 @@ class implicit_sanity_model(Quad_model):
         return batch['noisy']
 
     @staticmethod
-    def init_hyper(key,val,dtype):
-        rand = random.uniform(key)
+    def init_hyper(key,val,dtype,min=0,max=1):
+        rand = random.uniform(key,minval=min,maxval=max)
         return jnp.array(rand)
 
     def terms(self,primal_param,inpt):

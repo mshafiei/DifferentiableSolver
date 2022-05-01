@@ -5,20 +5,19 @@ source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 exp_params="\
 --mode train \
---model fft_image_grad \
+--model fft_helmholz \
 --TLIST data/train_1600.txt \
 --TESTPATH data/testset_nojitter \
 --logdir logger/fft_solver_gradfixed \
---expname fft_grad_image \
+--expname fft_helmholz \
 --batch_size 1 \
---out_features 3 \
---in_features 12" \
-# --store_params"
+--out_features 6 \
+--in_features 12 \
+--max_delta 0.00001"
 
 
-
-name=msh-fft-solver-train-grad-gfixed
+name=msh-fft-solver-train-helmholz
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name"
