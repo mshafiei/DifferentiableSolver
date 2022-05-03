@@ -12,12 +12,13 @@ exp_params="\
 --expname fft_grad_image \
 --batch_size 1 \
 --out_features 3 \
---in_features 12" \
+--in_features 12 \
+--thickness 128"
 # --store_params"
 
 
 
-name=msh-fft-solver-train-grad-gfixed
+name=msh-fft-solver-test-grad-gfixed
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 # ./experiments/run_local.sh "$scriptFn"

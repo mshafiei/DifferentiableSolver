@@ -105,8 +105,10 @@ ssim_fn = jax.jit(jaxutils.ssim)
 
 params = diffable_solver.init(rng,batch)
 pred, aux = apply(params,batch)
+flat_tree, _ = jax.tree_flatten(params)
+nparams = np.sum([jnp.prod(np.array(i.shape)) for i in flat_tree])
 
-
+logger.addDict({'nparams':nparams},'nparams')
 # @jax.jit
 def metrics(preds,gts,ignorelist=''):
     mtrcs = {}

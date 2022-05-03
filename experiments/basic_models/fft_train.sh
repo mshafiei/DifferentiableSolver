@@ -4,7 +4,7 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 exp_params="\
---mode train \
+--mode test \
 --model fft \
 --TLIST data/train_1600.txt \
 --TESTPATH data/testset_nojitter \
@@ -16,7 +16,7 @@ exp_params="\
 
 
 
-name=msh-fft-solver-train-gfixed
+name=msh-fft-solver-test-gfixed
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 # ./experiments/run_local.sh "$scriptFn"
