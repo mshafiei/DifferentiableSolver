@@ -212,7 +212,7 @@ if(opts.mode == 'train'):
             if(val_iter):
                 mtrcs = []
                 for c in tqdm.trange(128):
-                    batch,_ = dataset.next_batch(True,i)
+                    batch,_ = dataset.next_batch(True,c)
                     _,aux = apply(params,batch)
                     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
                     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)

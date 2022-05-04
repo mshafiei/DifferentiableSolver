@@ -101,13 +101,14 @@ class fft_solver(nn.Module):
                 None,
                 jnp.array)
         if(self.fft_model == 'fft_helmholz' and (not self.fixed_delta)):
+
             self.delta_phi = self.param('delta_phi',
                 implicit_sanity_model.init_hyper,
-                self.delta_phi_init,
+                jnp.log(jnp.exp(jnp.double(self.delta_phi_init)) - 1),
                 jnp.array,0,0)
             self.delta_psi = self.param('delta_psi',
                 implicit_sanity_model.init_hyper,
-                self.delta_psi_init,
+                jnp.log(jnp.exp(jnp.double(self.delta_psi_init)) - 1),
                 jnp.array,0,0)
     def visualize(self,inpt):
         predict,g = self.fft(inpt)

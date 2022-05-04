@@ -169,7 +169,8 @@ class Dataset:
         min_read, max_read, min_shot, max_shot)
         else:
             self.val = ValSet(val_path, bsz, ngpus)
-
+        self.train.dataset = self.train.dataset.repeat(100000)
+        self.val.dataset = self.val.dataset.repeat(100000)
         self.train_iter = iter(self.train.dataset)
         self.val_iter = iter(self.val.dataset)
     
@@ -216,11 +217,18 @@ class Dataset:
             'alpha':alpha,
             'ambient':example['ambient'],
             'flash':noisy_flash,
-            'flash_only':example['flash_only'],
+            'noisy_flash':noisy_flash,
             'noisy':noisy_ambient,
+            'noisy_ambient':noisy_ambient,
+            'noisy_warped_flash':noisy_flash,
             'net_input':net_input,
             'adapt_matrix':example['adapt_matrix'],
-            'color_matrix':example['color_matrix']
+            'color_matrix':example['color_matrix'],
+            'sig_read':example['sig_read'],
+            'sig_shot':example['sig_shot'],
+            'warped_flash_only':example['warped_flash_only'],
+            'warped_ambient':example['warped_ambient'],
+            'flash_only':example['flash_only']
         }
         
         return output
@@ -244,7 +252,7 @@ class Dataset:
         parser.add_argument('--displacement', default=2, type=float,help='Random shift in pixels')
         parser.add_argument('--TLIST', default='data/train.txt',type=str, help='Maximum rotation')
         parser.add_argument('--VPATH', default='data/valset/', type=str,help='Maximum rotation')
-        parser.add_argument('--TESTPATH', default='data/testset/', type=str,help='Maximum rotation')
+        parser.add_argument('--TESTPATH', default='data/testset_nojitter/', type=str,help='Maximum rotation')
         parser.add_argument('--batch_size', default=1, type=int,help='Image count in a batch')
         parser.add_argument('--min_scale', default=0.98,type=float, help='Random shift in pixels')
         parser.add_argument('--max_scale', default=1.02,type=float, help='Random shift in pixels')
