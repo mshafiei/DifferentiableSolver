@@ -13,13 +13,12 @@ exp_params="\
 --batch_size 1 \
 --out_features 3 \
 --in_features 12 \
---thickness 128 \
---store_params"
+--thickness 128"
 
 
 
-name=msh-fft-train-l0-gfixed-large
+name=msh-fft-train-l0-gfixed-large0
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-./experiments/run_local.sh "$scriptFn"
-# ./experiments/run_server.sh "$scriptFn" "$name"
+# ./experiments/run_local.sh "$scriptFn"
+./experiments/run_server.sh "$scriptFn" "$name"

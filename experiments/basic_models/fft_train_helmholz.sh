@@ -3,33 +3,46 @@ source ./experiments/homography_params_static.sh
 source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
+name=msh-fft-solver-train-helmholze-phi5e1-psi5e1
+helmholz='--delta_phi_init -1.0502254 --delta_psi_init -1.0502254 --expname fft_helmholze-phi5e1-psi5e1'
+# name=msh-fft-solver-train-helmholze-phi5e1-psi1e1
+# helmholz='--delta_phi_init -1.0502254 --delta_psi_init -2.252168 --expname fft_helmholze-phi5e1-psi1e1'
+# name=msh-fft-solver-train-helmholze-phi5e1-psi1e7
+# helmholz='--delta_phi_init -1.0502254 --delta_psi_init -15.942385 --expname fft_helmholze-phi5e1-psi1e7'
+# name=msh-fft-solver-train-helmholze-phi1e1-psi5e1
+# helmholz='--delta_phi_init -2.252168 --delta_psi_init -1.0502254 --expname fft_helmholze-phi1e1-psi5e1'
+# name=msh-fft-solver-train-helmholze-phi1e1-psi1e1
+# helmholz='--delta_phi_init -2.252168 --delta_psi_init -2.252168 --expname fft_helmholze-phi1e1-psi1e1'
+# name=msh-fft-solver-train-helmholze-phi1e1-psi1e7
+# helmholz='--delta_phi_init -2.252168 --delta_psi_init -15.942385 --expname fft_helmholze-phi1e1-psi1e7'
+# name=msh-fft-solver-train-helmholze-phi1e7-psi5e1
+# helmholz='--delta_phi_init -15.942385 --delta_psi_init -1.0502254 --expname fft_helmholze-phi1e7-psi5e1'
+# name=msh-fft-solver-train-helmholze-phi1e7-psi1e1
+# helmholz='--delta_phi_init -15.942385 --delta_psi_init -2.252168 --expname fft_helmholze-phi1e7-psi1e1'
+# name=msh-fft-solver-train-helmholze-phi1e7-psi1e7
+# helmholz='--delta_phi_init -15.942385 --delta_psi_init -15.942385 --expname fft_helmholze-phi1e7-psi1e7'
+# name=msh-fft-solver-train-helmholze-phi1-psi1
+# helmholz='--delta_phi_init 0.5413248 --delta_psi_init 0.5413248 --expname fft_helmholze-phi1-psi1'
+# name=msh-fft-solver-train-helmholze-phi1-psi1-fixed
+# helmholz='--delta_phi_init 0.5413248 --delta_psi_init 0.5413248 --fixed_delta --expname fft_helmholze-phi1-psi1-fixed'
+
 exp_params="\
 --mode train \
 --model fft_helmholz \
---TLIST data/train_1600.txt \
+--TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
 --logdir logger/fft_solver_gradfixed \
---expname fft_helmholze-3 \
 --batch_size 1 \
 --out_features 6 \
---in_features 12 \
---min_delta -1.0502254"
-# --min_delta -0.19587028"
-# --min_delta -2.252168"
-# --min_delta -9.210175" 
-# --min_delta -15.942385"
-# jnp.log(jnp.exp(jnp.double(3e-1)) - 1)
-# DeviceArray(-1.0502254, dtype=float32)
-# jnp.log(jnp.exp(jnp.double(6e-1)) - 1)
-# DeviceArray(-0.19587028, dtype=float32)
-# jnp.log(jnp.exp(jnp.double(1e-1)) - 1)
-# DeviceArray(-2.252168, dtype=float32)
-# jnp.log(jnp.exp(jnp.double(1e-4)) - 1)
-# DeviceArray(-9.210175, dtype=float32)
-# jnp.log(jnp.exp(jnp.double(1e-7)) - 1)
-# DeviceArray(-15.942385, dtype=float32)
-name=msh-fft-solver-train-helmholze-3
-scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
+--thickness 128 \
+--in_features 12 --store_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name"
+# jnp.log(jnp.exp(jnp.double(1e-7)) - 1)
+
+
+
+# name=msh-fft-solver-train-helmholze-3
+scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params $helmholz"
+
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name"

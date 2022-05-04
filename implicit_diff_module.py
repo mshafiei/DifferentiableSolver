@@ -82,10 +82,14 @@ class fft_solver(nn.Module):
     alpha_type: str
     alpha_map: Quad_model
     fft_model: str
-    min_delta: float
+    delta_phi_init: float
+    delta_psi_init: float
+    fixed_delta: bool
     @staticmethod
     def parse_arguments(parser):
-        parser.add_argument('--min_delta', type=float, default=0.00001, help='maximum value for initializing delta')
+        parser.add_argument('--delta_phi_init', type=float, default=0.00001, help='Initial value for delta phi')
+        parser.add_argument('--delta_psi_init', type=float, default=0.00001, help='Initial value for delta psi')
+        parser.add_argument('--fixed_delta', action='store_true',help='Do not change the delta value')
         return parser
 
     def setup(self):
@@ -96,11 +100,15 @@ class fft_solver(nn.Module):
                 implicit_sanity_model.init_hyper,
                 None,
                 jnp.array)
-        if(self.fft_model == 'fft_helmholz'):
-            self.delta = self.param('delta',
+        if(self.fft_model == 'fft_helmholz' and (not self.fixed_delta)):
+            self.delta_phi = self.param('delta_phi',
                 implicit_sanity_model.init_hyper,
-                self.min_delta,
-                jnp.array,self.min_delta,0)
+                self.delta_phi_init,
+                jnp.array,0,0)
+            self.delta_psi = self.param('delta_psi',
+                implicit_sanity_model.init_hyper,
+                self.delta_psi_init,
+                jnp.array,0,0)
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
 
@@ -112,8 +120,13 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            gx = phix - nn.softplus(self.delta) * ay
-            gy = phiy + nn.softplus(self.delta) * ax
+            if(self.fixed_delta):
+                gx = self.delta_psi_init * phix - self.delta_phi_init * ay
+                gy = self.delta_psi_init * phiy + self.delta_phi_init * ax
+            else:
+                gx = nn.softplus(self.delta_psi_init) * phix - nn.softplus(self.delta_phi_init) * ay
+                gy = nn.softplus(self.delta_psi_init) * phiy + nn.softplus(self.delta_phi_init) * ax
+            
         elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
@@ -174,8 +187,12 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            gx = phix - nn.softplus(self.delta) * ay
-            gy = phiy + nn.softplus(self.delta) * ax
+            if(self.fixed_delta):
+                gx = self.delta_psi_init * phix - self.delta_phi_init * ay
+                gy = self.delta_psi_init * phiy + self.delta_phi_init * ax
+            else:
+                gx = nn.softplus(self.delta_psi_init) * phix - nn.softplus(self.delta_phi_init) * ay
+                gy = nn.softplus(self.delta_psi_init) * phiy + nn.softplus(self.delta_phi_init) * ax
         elif(self.fft_model == 'fft_image_grad'):
             gx = utils.dx(g)
             gy = utils.dy(g)
@@ -233,10 +250,15 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            dx = phix - nn.softplus(self.delta) * ay
-            dy = phiy + nn.softplus(self.delta) * ax
+            if(self.fixed_delta):
+                dx = self.delta_psi_init * phix - self.delta_phi_init * ay
+                dy = self.delta_psi_init * phiy + self.delta_phi_init * ax
+            else:
+                dx = nn.softplus(self.delta_psi_init) * phix - nn.softplus(self.delta_phi_init) * ay
+                dy = nn.softplus(self.delta_psi_init) * phiy + nn.softplus(self.delta_phi_init) * ax
             dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
             dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
+
         elif(self.fft_model == 'fft_image_grad'):
             dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)
             dy = utils.dy(g).transpose(0,3,1,2).reshape(-1,h,w)
