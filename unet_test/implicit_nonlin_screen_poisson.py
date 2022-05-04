@@ -40,6 +40,7 @@ def parse_arguments(parser):
     parser.add_argument('--curl_2', default=0., type=float,help='Second order curl regularizer')
     parser.add_argument('--div_1', default=0., type=float,help='First order Div. regularizer')
     parser.add_argument('--div_2', default=0., type=float,help='Second order Div. regularizer')
+    parser.add_argument('--activation', default='relu', type=str,help='Activation function of the neural network')
     
     return parser
 
@@ -69,7 +70,7 @@ batch,_ = dataset.next_batch(False,0)
 
 im = batch['net_input']
 if(opts.nn_model == 'unet'):
-    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,'softplus')
+    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,opts.activation)
 elif(opts.nn_model == 'linear'):
     nn_model = DummyConv(opts.in_features,opts.out_features)
 else:
