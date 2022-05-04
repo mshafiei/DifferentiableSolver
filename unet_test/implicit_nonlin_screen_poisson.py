@@ -139,7 +139,7 @@ if(data is not None):
     print('Parameters loaded successfully')
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=None):
+def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True,ignorelist='',t=None):
     _,aux = apply(params,batch)
 
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
@@ -183,7 +183,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,ignorelist='',t=
         mtrcs.update({'lambda':params['params']['alpha']})
     if('delta' in params['params'].keys()):
         mtrcs.update({'delta':nn.softplus(params['params']['delta'])})
-    logger.addMetrics(mtrcs,mode=mode)
+    if(add_scalars):
+        logger.addMetrics(mtrcs,mode=mode)
     # termNames = diffable_solver.termLabels()
     # for step in range(opts.nnonlin_iter):
     #     logger.addScalar(aux['gn_loss'][step],'gn_loss_overall/step%i'%step,mode=mode)
@@ -209,9 +210,19 @@ if(opts.mode == 'train'):
             train_display = i % opts.display_freq == 0
             save_params = i % opts.save_param_freq == 0
             if(val_iter):
-                batch,_ = dataset.next_batch(True,i)
-                _,aux = apply(params,batch)
-                eval_visualize(params,batch,logger,'val',True,False)
+                mtrcs = []
+                for c in tqdm.trange(128):
+                    batch,_ = dataset.next_batch(True,i)
+                    _,aux = apply(params,batch)
+                    pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
+                    noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
+                    ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
+                    mtrcs.append(metrics(pred,ambient))
+                psnr = np.mean([i['psnr'] for i in mtrcs])
+                mse = np.mean([i['mse'] for i in mtrcs])
+                ssim = np.mean([i['ssim'] for i in mtrcs])
+                logger.addMetrics({'psnr':psnr,'mse':mse,'ssim':ssim},mode='val')
+                eval_visualize(params,batch,logger,'val',True,False,add_scalars=False)
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)

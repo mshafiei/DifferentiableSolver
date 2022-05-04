@@ -6,20 +6,20 @@ source ./experiments/solver_params.sh
 exp_params="\
 --mode train \
 --model fft_image_grad \
---TLIST data/train_1600.txt \
+--TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
---logdir logger/fft_solver_gradfixed \
---expname fft_grad_image \
+--logdir logger/fft_solver_largeds \
+--expname fft_l0 \
 --batch_size 1 \
 --out_features 3 \
 --in_features 12 \
---thickness 128"
-# --store_params"
+--thickness 128 \
+--store_params"
 
 
 
-name=msh-fft-solver-test-grad-gfixed
+name=msh-fft-train-l0-gfixed-large
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name"
