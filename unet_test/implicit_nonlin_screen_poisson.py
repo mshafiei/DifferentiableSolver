@@ -22,6 +22,7 @@ import os
 import cvgutils.nn.jaxUtils.utils as jaxutils
 import functools
 import deepfnf_utils.np_utils as np_utils
+from collections import OrderedDict
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
     choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz'],help='Which model to use')
@@ -144,6 +145,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True
     _,aux = apply(params,batch)
 
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
+    noisy_dim = tfu.camera_to_rgb_batch(batch['noisy'],batch)
     noisy = tfu.camera_to_rgb_batch(batch['noisy']/batch['alpha'],batch)
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
     mtrcs = metrics(pred,ambient,ignorelist)
@@ -153,16 +155,18 @@ def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True
         t.set_description(mtrcs_str)
     if(display):
         viz_imgs = visualize_model(params,batch)
-        labels = diffable_solver.labels()
+        labels_ret = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
-        imgs = [pred,ambient,noisy,flash,*viz_imgs]
-        labels = [r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],
-                    mtrcs['mse']),
-                    r'$Ground~Truth~(I_{ambient})$',
-                    r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f$'%(mtrcs_noisy['psnr'],
-                    mtrcs_noisy['mse']),
-                    r'$Flash~input~(I_{flash})$',
-                    *labels]
+        imgs,labels = OrderedDict(),OrderedDict()
+        imgs['pred'], imgs['ambient'], imgs['noisy'], imgs['noisy_dim'], imgs['flash'] = pred, ambient, noisy, noisy_dim, flash
+        imgs.update(viz_imgs)
+        labels['pred'] = r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],mtrcs['mse'])
+        labels['ambient'] = r'$Ground~Truth~(I_{ambient})$'
+        labels['noisy'] = r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f,\alpha:~%.2f$'%(mtrcs_noisy['psnr'], mtrcs_noisy['mse'],1./batch['alpha'])
+        labels['noisy_dim'] = r'$Noisy~input~dim$'
+        labels['flash'] = r'$Flash~input~(I_{flash})$'
+                    
+        labels.update(labels_ret)
         if('alpha' in params['params'].keys()):
             strlambda = params['params']['alpha']
         else:
@@ -171,7 +175,12 @@ def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True
             strdelta = nn.softplus(params['params']['delta'])
         else:
             strdelta = 'N/A'
-        logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
+        
+        if(mode == 'test'):
+            logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
+        else:
+            logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
+        logger.createTeaser(imgs,labels,'Teaser',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)
@@ -224,6 +233,7 @@ if(opts.mode == 'train'):
                 ssim = np.mean([i['ssim'] for i in mtrcs])
                 logger.addMetrics({'psnr':psnr,'mse':mse,'ssim':ssim},mode='val')
                 eval_visualize(params,batch,logger,'val',True,False,add_scalars=False)
+                
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)

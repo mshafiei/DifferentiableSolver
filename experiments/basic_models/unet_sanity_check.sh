@@ -8,11 +8,12 @@ exp_params="\
 --model unet \
 --TLIST data/train_1.txt \
 --logdir logger/Unet_test \
---expname unet-sanity-relu \
+--expname unet-sanity-softplus-64 \
 --batch_size 1 \
 --out_features 3 \
 --thickness 64 \
---in_features 12 --store_params"
+--in_features 12 \
+--activation softplus"
 
 
 

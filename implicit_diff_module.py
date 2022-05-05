@@ -12,6 +12,7 @@ import cvgutils.Linalg as linalg
 import cvgutils.Image as cvgim
 from functools import partial
 import cvgutils.nn.jaxUtils.utils as jaxutils
+from collections import OrderedDict
 #diff solve(module)
 #setup()
 #  self.quadratic_model with primal parameters
@@ -112,7 +113,8 @@ class fft_solver(nn.Module):
                 jnp.array,0,0)
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
-
+        
+        wb = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
         # g = self.quad_model(inpt['net_input'])
         if(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
@@ -137,40 +139,50 @@ class fft_solver(nn.Module):
         else:
             print('Error: no such fft model ', self.fft_model)
             exit(0)
-        # predict = tfu.camera_to_rgb_batch(predict/inpt['alpha'],inpt)
-        dx = utils.dx(predict)
-        dy = utils.dy(predict)
+        dx = wb(utils.dx(predict))
+        dy = wb(utils.dy(predict))
 
-        dxx = utils.dx(dx)
-        dyy = utils.dy(dy)
-        gxx = utils.dx(gx)
-        gyy = utils.dy(gy)
-        out = [predict/inpt['alpha'],jnp.abs(gxx)*1000,jnp.abs(dxx)*1000,
-                jnp.abs(gyy)*1000,jnp.abs(dyy)*1000,
-                jnp.abs(gx)*1000,jnp.abs(dx)*1000,
-                jnp.abs(gy)*1000,jnp.abs(dy)*1000,]
+        dxx = wb(utils.dx(dx))
+        dyy = wb(utils.dy(dy))
+        gxx = wb(utils.dx(gx))
+        gyy = wb(utils.dy(gy))
+        out = {'pred':wb(predict),'gxx':jnp.abs(gxx),'dxx':jnp.abs(dxx),
+                'gyy':jnp.abs(gyy),'dyy':jnp.abs(dyy),
+                'gx':jnp.abs(gx),'dx':jnp.abs(dx),
+                'gy':jnp.abs(gy),'dy':jnp.abs(dy)}
         
         if(self.fft_model == 'fft_helmholz'):
-            out += [phix*1000,phiy*1000,ax*1000,ay*1000]
+            out.update({'phix':jnp.abs(wb(phix)),'phiy':jnp.abs(wb(phiy)),'ax':jnp.abs(wb(ax)),'ay':jnp.abs(wb(ay))})
         elif(self.fft_model == 'fft_image_grad'):
-            out += [g]
+            out.update({'g':jnp.abs(g)})
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
-            out.append(jnp.concatenate([alpha,alpha,alpha],axis=-1))
+            out.update({'alpha_map':jnp.concatenate([alpha,alpha,alpha],axis=-1)})
         return out
         # predict,(gt,grad_x,dx,grad_y,dy) = self(inpt)
         # return [predict,gt,grad_x[None,...],dx,grad_y[None,...],dy]
 
     def labels(self):
-        
-        out = [r'$I$',r'$Unet~output (g^x_x) \times 1e3$',r'$I_{xx} \times 1e3$',r'$Unet~output (g^y_y) \times 1e3$',r'$I_{yy} \times 1e3$',
-        r'$Unet~output (g^x) \times 1e3.$',r'$I_{x} \times 1e3$',r'$Unet~output (g^y) \times 1e3$',r'$I_{y} \times 1e3$']
+        out = OrderedDict()
+        out['pred'] = r'$I$'
+        out['gxx'] = r'$Unet~output (g^x_x) \times 1e3$'
+        out['dxx'] = r'$I_{xx} \times 1e3$'
+        out['gyy'] = r'$Unet~output (g^y_y) \times 1e3$'
+        out['dyy'] = r'$I_{yy} \times 1e3$'
+        out['gx'] = r'$Unet~output (g^x) \times 1e3.$'
+        out['dx'] = r'$I_{x} \times 1e3$'
+        out['gy'] = r'$Unet~output (g^y) \times 1e3$'
+        out['dy'] = r'$I_{y} \times 1e3$'
         if(self.fft_model == 'fft_helmholz'):
-            out += [r'$\nabla_x \phi \times1e3$',r'$\nabla_y \phi \times1e3$',r'$\nabla_x a \times1e3$',r'$\nabla_y a \times1e3$']
+            out['phix'] = r'$\nabla_x \phi \times1e3$'
+            out['phiy'] = r'$\nabla_y \phi \times1e3$'
+            out['ax'] = r'$\nabla_x a \times1e3$'
+            out['ay'] = r'$\nabla_y a \times1e3$'
+
         elif(self.fft_model == 'fft_image_grad'):
-            out += ['$Unet output \times 1.$']
+            out['g'] = '$Unet output \times 1.$'
         if(self.alpha_type == 'map_2d'):
-            out.append('$\lambda$')
+            out['alpha_map'] = '$\lambda$'
         return out
         # return [r'$I$',r'$I_{ambient}$',r'$g^x$',r'$\nabla_x I$',r'$g^y$',r'$\nabla_y I$']
         
@@ -299,7 +311,9 @@ class diff_solver(nn.Module):
     
     def visualize(self,inpt):
         predict = self(inpt)
-        return self.quad_model.visualize(predict[0],inpt)
+        out = OrderedDict()
+        out['pred'] = self.quad_model.visualize(predict[0],inpt)
+        return out
 
     def labels(self):
         return self.quad_model.labels()

@@ -5,22 +5,23 @@ source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 exp_params="\
 --mode train \
---model unet \
+--model fft \
 --TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
---logdir logger/fft_solver_largeds-relu-128 \
---expname unet \
+--logdir logger/fft_solver_largeds \
+--expname fft \
 --batch_size 1 \
---out_features 3 \
+--out_features 6 \
 --in_features 12 \
---thickness 128 \
---activation relu"
+--thickness 64 \
+--activation softplus"
+
 
 priority='nice'
 
-
-name=msh-unet-relu-128
+name=msh-fft-train-relu-128
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn" "$name"
-./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+# 
