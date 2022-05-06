@@ -246,6 +246,7 @@ elif(opts.mode == 'test'):
     end_time = time.time()
     print('compile time ',end_time - start_time)
     errors = {}
+    errors_dict = {}
     for k in range(4):
         mtrcs = []
         for c in tqdm.trange(128):
@@ -285,10 +286,11 @@ elif(opts.mode == 'test'):
         psnr = np.mean([i['psnr'] for i in mtrcs])
         mse = np.mean([i['mse'] for i in mtrcs])
         ssim = np.mean([i['ssim'] for i in mtrcs])
-
+        errors_dict['Level %d' % (4 - k)] = {'PSNR': psnr,'MSE':mse,'SSIM':ssim}
         errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
         print(errors['Level %d' % (4 - k)])
-    logger.dumpDictJson(errors,'test_errors',opts.mode)
+    logger.dumpDictJson(errors_dict,'test_errors',opts.mode)
+    
 else:
     print('Unknown mode ',opts.mode)
     exit(0)
