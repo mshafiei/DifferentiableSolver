@@ -139,22 +139,28 @@ class fft_solver(nn.Module):
         else:
             print('Error: no such fft model ', self.fft_model)
             exit(0)
-        dx = wb(utils.dx(predict))
-        dy = wb(utils.dy(predict))
+        dx = utils.dx(predict)
+        dy = utils.dy(predict)
 
-        dxx = wb(utils.dx(dx))
-        dyy = wb(utils.dy(dy))
-        gxx = wb(utils.dx(gx))
-        gyy = wb(utils.dy(gy))
-        out = {'pred':wb(predict),'gxx':jnp.abs(gxx),'dxx':jnp.abs(dxx),
-                'gyy':jnp.abs(gyy),'dyy':jnp.abs(dyy),
-                'gx':jnp.abs(gx),'dx':jnp.abs(dx),
-                'gy':jnp.abs(gy),'dy':jnp.abs(dy)}
+        dxx = utils.dx(dx)
+        dyy = utils.dy(dy)
+        gxx = utils.dx(gx)
+        gyy = utils.dy(gy)
+        out = OrderedDict()
+        out['pred2'] = wb(predict)
+        out['gxx'] = jnp.abs(wb(gxx))
+        out['dxx'] = jnp.abs(wb(dxx))
+        out['gyy'] = jnp.abs(wb(gyy))
+        out['dyy'] = jnp.abs(wb(dyy))
+        out['gx'] = jnp.abs(wb(gx))
+        out['dx'] = jnp.abs(wb(dx))
+        out['gy'] = jnp.abs(wb(gy))
+        out['dy'] = jnp.abs(wb(dy))
         
         if(self.fft_model == 'fft_helmholz'):
             out.update({'phix':jnp.abs(wb(phix)),'phiy':jnp.abs(wb(phiy)),'ax':jnp.abs(wb(ax)),'ay':jnp.abs(wb(ay))})
         elif(self.fft_model == 'fft_image_grad'):
-            out.update({'g':jnp.abs(g)})
+            out.update({'g':jnp.abs(wb(g))})
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
             out.update({'alpha_map':jnp.concatenate([alpha,alpha,alpha],axis=-1)})
@@ -164,7 +170,7 @@ class fft_solver(nn.Module):
 
     def labels(self):
         out = OrderedDict()
-        out['pred'] = r'$I$'
+        out['pred2'] = r'$I$'
         out['gxx'] = r'$Unet~output (g^x_x) \times 1e3$'
         out['dxx'] = r'$I_{xx} \times 1e3$'
         out['gyy'] = r'$Unet~output (g^y_y) \times 1e3$'

@@ -29,6 +29,7 @@ def parse_arguments(parser):
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
+    parser.add_argument('--display_freq_test', default=10, type=int,help='Display frequency by iteration count')
     parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
     parser.add_argument('--save_param_freq', default=100,type=int, help='Maximum rotation')
     parser.add_argument('--max_iter', default=1500000, type=int,help='Maximum iteration count')
@@ -180,7 +181,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True
             logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
         else:
             logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
-        logger.createTeaser(imgs,labels,'Teaser',dim_type='BHWC',mode=mode)
+        if(opts.model != 'unet'):
+            logger.createTeaser(imgs,labels,'Teaser',dim_type='BHWC',mode=mode)
 
     if(save_params):
         logger.save_params(params,batch,i)
@@ -274,7 +276,7 @@ elif(opts.mode == 'test'):
                 net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
                 batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
-                mt = eval_visualize(params,batch,logger,'test', c % 10 == 0 ,False)
+                mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False)
                 logger.takeStep()
                 mtrcs.append(mt)
             except:
@@ -286,7 +288,7 @@ elif(opts.mode == 'test'):
 
         errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
         print(errors['Level %d' % (4 - k)])
-    logger.addDict(errors,'test_errors',opts.mode)
+    logger.dumpDictJson(errors,'test_errors',opts.mode)
 else:
     print('Unknown mode ',opts.mode)
     exit(0)
