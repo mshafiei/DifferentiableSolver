@@ -13,15 +13,15 @@ fns = []
 fns.append('logger/fft_solver_largeds-relu-128/unet/test/test_errors.txt')
 fns.append('logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-fixed-128/test/test_errors.txt')
 fns.append('logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-128/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu-128/fft_l0/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu-128/fft/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds-relu-128/fft_l0/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds-relu-128/fft/test/test_errors.txt')
 
 #64
 fns.append('logger/fft_solver_largeds-relu/unet/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu/fft_helmholze-phi1-psi1-fixed-128/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu/fft_helmholze-phi1-psi1-128/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu/fft_l0/test/test_errors.txt')
-fns.append('logger/fft_solver_largeds_relu/fft/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds_relu/fft_helmholze-phi1-psi1-fixed/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds_relu/fft_helmholze-phi1-psi1/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds-relu/fft_l0/test/test_errors.txt')
+fns.append('logger/fft_solver_largeds-relu/fft/test/test_errors.txt')
 
 
 ress = [loadJson(i) for i in fns]
