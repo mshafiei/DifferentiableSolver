@@ -286,7 +286,7 @@ elif(opts.mode == 'test'):
         psnr = np.mean([i['psnr'] for i in mtrcs])
         mse = np.mean([i['mse'] for i in mtrcs])
         ssim = np.mean([i['ssim'] for i in mtrcs])
-        errors_dict['Level %d' % (4 - k)] = {'PSNR': psnr,'MSE':mse,'SSIM':ssim}
+        errors_dict['Level %d' % (4 - k)] = {'PSNR': str(psnr),'MSE':str(mse),'SSIM':str(ssim)}
         errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
         print(errors['Level %d' % (4 - k)])
     logger.dumpDictJson(errors_dict,'test_errors',opts.mode)
