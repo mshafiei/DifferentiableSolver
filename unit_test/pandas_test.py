@@ -1,4 +1,3 @@
-from tabulate import tabulate
 import pandas as pd
 import numpy as np
 from cvgutils.Utils import createTexTable, loadJson
