@@ -256,8 +256,8 @@ class fft_solver(nn.Module):
 
     def fft(self,inpt,inim=None):
         if(self.fft_model == 'fft_filters'):
-            kernels = self.quad_model(inpt['net_input'])
-            g = None
+            assert self.opts.out_features == self.opts.kernel_count * self.opts.kernel_channels
+            g, kernel = self.quad_model(inpt['net_input'])
         else:
             if(inim is None):
                 g = self.quad_model(inpt['net_input'])
@@ -272,7 +272,7 @@ class fft_solver(nn.Module):
         psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
         if(self.fft_model == 'fft_filters'):
-            i_denoise = linalg.screened_poisson_multi_kernel(alpha,inpt['noisy'],inpt['noisy'],kernels)
+            i_denoise = linalg.screened_poisson_multi_kernel(self.alpha,inpt['noisy'],g,kernel)
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
