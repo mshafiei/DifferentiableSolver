@@ -7,7 +7,7 @@ mode=train
 fcount=64
 fcount_suffix=
 
-expname=fft-solver-filters
+expname=fft-solver-filters-110
 name=msh-$expname
 
 exp_params="\
@@ -20,15 +20,16 @@ exp_params="\
 --batch_size 1 \
 --thickness $fcount \
 --in_features 12 \
---out_features 270 \
+--out_features 330 \
+--unet_factor 1 \
 --activation relu \
 --kernel_channels 3 \
---kernel_count 90 \
---kernel_size 15 --store_params"
+--kernel_count 110 \
+--kernel_size 15"
 
 priority='nice'
 
-name=msh-fft-solver-train-helmholze-3
+# name=msh-fft-solver-train-helmholze-3
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 ./experiments/run_local.sh "$scriptFn"
