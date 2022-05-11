@@ -17,7 +17,7 @@ exp_params="\
 --out_features 6 \
 --in_features 12 \
 --thickness $fcount \
---activation relu --store_params"
+--activation relu"
 
 
 priority='nice'

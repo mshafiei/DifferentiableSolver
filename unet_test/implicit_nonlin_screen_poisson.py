@@ -25,13 +25,13 @@ import deepfnf_utils.np_utils as np_utils
 from collections import OrderedDict
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz'],help='Which model to use')
+    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
-    parser.add_argument('--display_freq', default=1000, type=int,help='Display frequency by iteration count')
+    parser.add_argument('--display_freq', default=50000, type=int,help='Display frequency by iteration count')
     parser.add_argument('--display_freq_test', default=10, type=int,help='Display frequency by iteration count')
-    parser.add_argument('--val_freq', default=101, type=int,help='Display frequency by iteration count')
-    parser.add_argument('--save_param_freq', default=100,type=int, help='Maximum rotation')
+    parser.add_argument('--val_freq', default=10001, type=int,help='Display frequency by iteration count')
+    parser.add_argument('--save_param_freq', default=50000,type=int, help='Maximum rotation')
     parser.add_argument('--max_iter', default=1500000, type=int,help='Maximum iteration count')
     parser.add_argument('--unet_depth', default=4, type=int,help='Depth of neural net')
     parser.add_argument('--mode', default='train', type=str,choices=['train','test'],help='Should we train or test the model?')
@@ -72,7 +72,9 @@ batch,_ = dataset.next_batch(False,0)
 
 im = batch['net_input']
 if(opts.nn_model == 'unet'):
-    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,opts.activation)
+    nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,
+    opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,
+    opts.activation,opts.model,opts.kernel_channels,opts.kernel_count,opts.kernel_size)
 elif(opts.nn_model == 'linear'):
     nn_model = DummyConv(opts.in_features,opts.out_features)
 else:
@@ -84,7 +86,7 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
-elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz'):
+elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters'):
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,delta_phi_init=opts.delta_phi_init,delta_psi_init=opts.delta_psi_init,fixed_delta=opts.fixed_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,opts.mode == 'test',opts.group_norm,2,opts.alpha_thickness,'softplus')
@@ -107,11 +109,10 @@ ssim_fn = jax.jit(jaxutils.ssim)
 # ssim_fn = jax.jit(functools.partial(jaxutils.compute_ssim, max_val=1.))
 
 params = diffable_solver.init(rng,batch)
-pred, aux = apply(params,batch)
 flat_tree, _ = jax.tree_flatten(params)
 nparams = np.sum([jnp.prod(np.array(i.shape)) for i in flat_tree])
-
 logger.addDict({'nparams':nparams},'nparams')
+pred, aux = apply(params,batch)
 # @jax.jit
 def metrics(preds,gts,ignorelist=''):
     mtrcs = {}

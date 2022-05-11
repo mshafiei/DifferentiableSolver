@@ -116,7 +116,10 @@ class fft_solver(nn.Module):
         
         wb = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
         # g = self.quad_model(inpt['net_input'])
-        if(self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft_filters'):
+            gx = predict * 0
+            gy = predict * 0
+        elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
             phix = utils.dx(phi)
@@ -199,7 +202,9 @@ class fft_solver(nn.Module):
         aux = {}
         fft_solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
         ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
-        if(self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft_filters'):
+            pass
+        elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
             phix = utils.dx(phi)
@@ -250,10 +255,14 @@ class fft_solver(nn.Module):
 
 
     def fft(self,inpt,inim=None):
-        if(inim is None):
-            g = self.quad_model(inpt['net_input'])
+        if(self.fft_model == 'fft_filters'):
+            kernels = self.quad_model(inpt['net_input'])
+            g = None
         else:
-            g = inim
+            if(inim is None):
+                g = self.quad_model(inpt['net_input'])
+            else:
+                g = inim
         b,h,w,c = inpt['noisy'].shape
         # lambda_d = 0.00000001
         if(self.alpha_type == 'map_2d'):
@@ -262,7 +271,9 @@ class fft_solver(nn.Module):
             alpha = self.alpha
         psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
-        if(self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft_filters'):
+            i_denoise = linalg.screened_poisson_multi_kernel(alpha,inpt['noisy'],inpt['noisy'],kernels)
+        elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
             phix = utils.dx(phi)
@@ -284,10 +295,12 @@ class fft_solver(nn.Module):
         elif(self.fft_model == 'fft'):
             dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
             dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
-        func = map(psp,img,dx,dy)
+        if(self.fft_model != 'fft_filters'):
+            func = map(psp,img,dx,dy)
+            i_denoise = jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1)
         # dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
         # dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
-        return jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1), g
+        return i_denoise, g
         # noisy = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/noisy.png')
         # gt = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/gt.png')
 

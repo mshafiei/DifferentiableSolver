@@ -16,7 +16,7 @@ exp_params="\
 --batch_size 1 \
 --out_features 3 \
 --in_features 12 \
---thickness 128 \
+--thickness $fcount \
 --activation relu"
 
 priority='nice'
