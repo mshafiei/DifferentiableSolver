@@ -25,7 +25,7 @@ import deepfnf_utils.np_utils as np_utils
 from collections import OrderedDict
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters'],help='Which model to use')
+    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=50000, type=int,help='Display frequency by iteration count')
@@ -74,7 +74,7 @@ im = batch['net_input']
 if(opts.nn_model == 'unet'):
     nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,
     opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,
-    opts.activation,opts.model,opts.kernel_channels,opts.kernel_count,opts.kernel_size,opts.unet_factor)
+    opts.activation,opts.model,opts.kernel_channels,opts.kernel_count,opts.kernel_size,opts.unet_factor,opts.high_dim)
 elif(opts.nn_model == 'linear'):
     nn_model = DummyConv(opts.in_features,opts.out_features)
 else:
@@ -86,7 +86,7 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
-elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters'):
+elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters' or opts.model == 'fft_highdim'):
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,delta_phi_init=opts.delta_phi_init,delta_psi_init=opts.delta_psi_init,fixed_delta=opts.fixed_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,

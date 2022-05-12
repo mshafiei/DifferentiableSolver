@@ -12,7 +12,7 @@ name=msh-$expname
 
 exp_params="\
 --mode $mode \
---model fft_filters \
+--model fft_highdim \
 --TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
 --logdir logger/$expname \
@@ -20,17 +20,18 @@ exp_params="\
 --batch_size 1 \
 --thickness $fcount \
 --in_features 12 \
---out_features 270 \
+--out_features 128 \
 --unet_factor 1 \
 --activation relu \
 --kernel_channels 3 \
 --kernel_count 90 \
---kernel_size 15"
+--kernel_size 15 \
+--high_dim --store_params"
 
 priority='nice'
 
 # name=msh-fft-solver-train-helmholze-3
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name" "$priority"

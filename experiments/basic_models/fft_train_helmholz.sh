@@ -4,8 +4,8 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 mode=test
-fcount=128
-fcount_suffix=-128
+fcount=64
+fcount_suffix=
 # name=msh-fft-solver-train-helmholze-phi5e1-psi5e1
 # helmholz='--delta_phi_init -1.0502254 --delta_psi_init -1.0502254 --expname fft_helmholze-phi5e1-psi5e1'
 # name=msh-fft-solver-train-helmholze-phi5e1-psi1e1

@@ -4,8 +4,8 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 mode=test
-fcount=64
-fcount_suffix=
+fcount=128
+fcount_suffix=-128
 exp_params="\
 --mode $mode \
 --model fft_image_grad \

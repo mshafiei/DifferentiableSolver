@@ -116,7 +116,7 @@ class fft_solver(nn.Module):
         
         wb = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
         # g = self.quad_model(inpt['net_input'])
-        if(self.fft_model == 'fft_filters'):
+        if(self.fft_model == 'fft_filters' or self.fft_model == 'fft_highdim'):
             gx = predict * 0
             gy = predict * 0
         elif(self.fft_model == 'fft_helmholz'):
@@ -255,7 +255,36 @@ class fft_solver(nn.Module):
 
 
     def fft(self,inpt,inim=None):
-        if(self.fft_model == 'fft_filters'):
+        b,h,w,c = inpt['noisy'].shape
+        if(self.alpha_type == 'map_2d'):
+            alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
+        elif(self.alpha_type == 'scalar'):
+            alpha = self.alpha
+        psp = partial(linalg.screen_poisson,alpha)
+        if(self.fft_model == 'fft_highdim'):
+            g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
+            lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
+            noisy_high = self.quad_model.low2highdim(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
+            phi = g[...,::2]
+            a = g[...,1::2]
+
+            phix = utils.dx(phi)
+            phiy = utils.dy(phi)
+            ax = utils.dx(a)
+            ay = utils.dy(a)
+            if(self.fixed_delta):
+                dx = self.delta_psi_init * phix - self.delta_phi_init * ay
+                dy = self.delta_psi_init * phiy + self.delta_phi_init * ax
+            else:
+                dx = nn.softplus(self.delta_psi_init) * phix - nn.softplus(self.delta_phi_init) * ay
+                dy = nn.softplus(self.delta_psi_init) * phiy + nn.softplus(self.delta_phi_init) * ax
+            dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
+            dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
+
+            func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
+            i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
+            i_denoise = self.quad_model.high2lowdim(i_denoise_highdim)
+        elif(self.fft_model == 'fft_filters'):
             assert self.opts.out_features == self.opts.kernel_count * self.opts.kernel_channels
             g, kernel = self.quad_model(inpt['net_input'])
         else:
@@ -263,13 +292,7 @@ class fft_solver(nn.Module):
                 g = self.quad_model(inpt['net_input'])
             else:
                 g = inim
-        b,h,w,c = inpt['noisy'].shape
         # lambda_d = 0.00000001
-        if(self.alpha_type == 'map_2d'):
-            alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
-        elif(self.alpha_type == 'scalar'):
-            alpha = self.alpha
-        psp = partial(linalg.screen_poisson,alpha)
         img = inpt['noisy'].transpose(0,3,1,2).reshape(-1,h,w)
         if(self.fft_model == 'fft_filters'):
             i_denoise = linalg.screened_poisson_multi_kernel(self.alpha,inpt['noisy'],g,kernel)
