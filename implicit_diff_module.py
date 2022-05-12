@@ -292,7 +292,7 @@ class fft_solver(nn.Module):
         elif(self.fft_model == 'fft_image_grad'):
             dx = utils.dx(g).transpose(0,3,1,2).reshape(-1,h,w)
             dy = utils.dy(g).transpose(0,3,1,2).reshape(-1,h,w)
-        elif(self.fft_model == 'fft'):
+        elif(self.fft_model == 'fft' or self.fft_model == 'fft_alphamap'):
             dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
             dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
         if(self.fft_model != 'fft_filters'):
