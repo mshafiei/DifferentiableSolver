@@ -93,7 +93,7 @@ elif(opts.model == 'fft_alphamap'):
     opts.mode == 'test',opts.group_norm,2,opts.alpha_thickness,
     'softplus',opts.model,opts.kernel_channels,opts.kernel_count,opts.kernel_size,opts.unet_factor)
 
-    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='map_2d',alpha_map=alpha_model)
+    diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='map_2d',alpha_map=alpha_model,fft_model=opts.model,delta_phi_init=opts.delta_phi_init,delta_psi_init=opts.delta_psi_init,fixed_delta=opts.fixed_delta)
 elif(opts.model == 'dummy'):
     diffable_solver = diff_solver(opts=opts, quad_model=nn.Module())
 else:
