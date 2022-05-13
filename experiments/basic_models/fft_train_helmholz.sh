@@ -4,8 +4,8 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 mode=test
-fcount=64
-fcount_suffix=
+fcount=128
+fcount_suffix=-128
 # name=msh-fft-solver-train-helmholze-phi5e1-psi5e1
 # helmholz='--delta_phi_init -1.0502254 --delta_psi_init -1.0502254 --expname fft_helmholze-phi5e1-psi5e1'
 # name=msh-fft-solver-train-helmholze-phi5e1-psi1e1
@@ -44,14 +44,15 @@ exp_params="\
 --out_features 6 \
 --thickness $fcount \
 --in_features 12 \
---activation relu"
+--activation relu \
+--max_iter 1500000 --store_params"
 
-priority='nice'
+priority='normal'
 
 
 
 # name=msh-fft-solver-train-helmholze-3
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params $helmholz"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name" "$priority"

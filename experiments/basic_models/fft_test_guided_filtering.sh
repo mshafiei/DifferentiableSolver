@@ -4,25 +4,26 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 mode=test
-fcount=128
-fcount_suffix=-128
+fcount=64
+fcount_suffix=
 exp_params="\
 --mode $mode \
---model fft \
+--model guided_filtering \
 --TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
 --logdir logger/fft_solver_largeds-relu$fcount_suffix \
---expname fft \
+--expname guided_filtering \
 --batch_size 1 \
---out_features 6 \
+--out_features 3 \
 --in_features 12 \
 --thickness $fcount \
 --activation relu"
 
+priority='nice'
 
-priority='normal'
 
-name=msh-fft-$mode-relu$fcount_suffix
+
+name=msh-fft-$mode-l0-gfixed-large0-relu$fcount_suffix
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
 # ./experiments/run_local.sh "$scriptFn"

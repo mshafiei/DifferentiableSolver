@@ -12,8 +12,10 @@ else
     fi
 fi
 unset __conda_setup
+export XLA_PYTHON_CLIENT_PREALLOCATE=False
 # <<< conda initialize <<<
-
+conda env create -f req.yml
+conda activate deepfnf
 cp /root/ssh_mount/id_rsa* /root/.ssh/
 chmod 400 ~/.ssh/id_rsa
 apt-get update

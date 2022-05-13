@@ -7,8 +7,19 @@ mode=train
 fcount=64
 fcount_suffix=
 
-expname=fft-solver-filters-90-factor1
-name=msh-$expname
+# expname=fft-highdim-phi01-psi01-$fcount
+# helmholz="--delta_phi_init .01 --delta_psi_init .01"
+
+# expname=fft-highdim-phi01-psi1-$fcount
+# helmholz="--delta_phi_init .01 --delta_psi_init 1."
+
+# expname=fft-highdim-phi1-psi01-$fcount
+# helmholz="--delta_phi_init 1. --delta_psi_init .01"
+
+expname=fft-highdim-phi1-psi1-fixed-$fcount
+helmholz="--delta_phi_init 1. --delta_psi_init 1. --fixed_delta"
+
+name=msh-$mode-$expname
 
 exp_params="\
 --mode $mode \
@@ -26,12 +37,12 @@ exp_params="\
 --kernel_channels 3 \
 --kernel_count 90 \
 --kernel_size 15 \
---high_dim --store_params"
+--high_dim"
 
 priority='nice'
 
 # name=msh-fft-solver-train-helmholze-3
-scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
+scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $helmholz $homography_params $logger_params $noise_params $solver_params"
 
-./experiments/run_local.sh "$scriptFn"
-# ./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+# ./experiments/run_local.sh "$scriptFn"
+./experiments/run_server.sh "$scriptFn" "$name" "$priority"

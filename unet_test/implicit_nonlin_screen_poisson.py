@@ -146,7 +146,7 @@ if(data is not None):
     print('Parameters loaded successfully')
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True,ignorelist='',t=None):
+def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add_scalars=True,ignorelist='',t=None):
     _,aux = apply(params,batch)
 
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
@@ -155,6 +155,12 @@ def eval_visualize(params,batch,logger,mode,display,save_params,add_scalars=True
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
     mtrcs = metrics(pred,ambient,ignorelist)
     mtrcs_noisy = metrics(noisy,ambient,ignorelist)
+    if(erreval != None):
+        piq_metrics_pred = erreval.eval(batch['ambient'],pred,dtype='jax')
+        piq_metrics_noisy = erreval.eval(batch['ambient'],noisy,dtype='jax')
+        mtrcs.update({'msssim':piq_metrics_pred['msssim'],'lpipsVGG':piq_metrics_pred['lpipsVGG'],'lpipsAlex':piq_metrics_pred['lpipsAlex']})
+        mtrcs_noisy.update({'msssim':piq_metrics_noisy['msssim'],'lpipsVGG':piq_metrics_noisy['lpipsVGG'],'lpipsAlex':piq_metrics_noisy['lpipsAlex']})
+
     mtrcs_str = ''.join([' %s:%.5f' % (k,v) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
@@ -251,47 +257,48 @@ elif(opts.mode == 'test'):
     print('compile time ',end_time - start_time)
     errors = {}
     errors_dict = {}
+    erreval = linalg.ErrEval('cuda:0')
     for k in range(4):
-        mtrcs = []
+        mtrcs = {}
         for c in tqdm.trange(128):
-            try:
-                data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
-                keys = [jax.random.PRNGKey(c*10 + i) for i in range(10)]
-                if(len(data['alpha'].shape) == 1):
-                    alpha = data['alpha'][None, None, None, None]
-                else:
-                    alpha = data['alpha']
-                ambient = data['ambient']
-                dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'],keys[0], alpha=alpha)
-                dimmed_warped_ambient, _ = tfu.dim_image_jax(
-                    data['warped_ambient'], keys[1], alpha=alpha)
+            data = np.load('%s/%d/%d.npz' % (opts.TESTPATH, k, c))
+            keys = [jax.random.PRNGKey(c*10 + i) for i in range(10)]
+            if(len(data['alpha'].shape) == 1):
+                alpha = data['alpha'][None, None, None, None]
+            else:
+                alpha = data['alpha']
+            ambient = data['ambient']
+            dimmed_ambient, _ = tfu.dim_image_jax(data['ambient'],keys[0], alpha=alpha)
+            dimmed_warped_ambient, _ = tfu.dim_image_jax(
+                data['warped_ambient'], keys[1], alpha=alpha)
 
-                # Make the flash brighter by increasing the brightness of the
-                # flash-only image.
-                flash = data['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
-                warped_flash = data['warped_flash_only'] * \
-                    ut.FLASH_STRENGTH + dimmed_warped_ambient
+            # Make the flash brighter by increasing the brightness of the
+            # flash-only image.
+            flash = data['flash_only'] * ut.FLASH_STRENGTH + dimmed_ambient
+            warped_flash = data['warped_flash_only'] * \
+                ut.FLASH_STRENGTH + dimmed_warped_ambient
 
-                noisy_ambient = data['noisy_ambient']
-                noisy_flash = data['noisy_warped_flash']
+            noisy_ambient = data['noisy_ambient']
+            noisy_flash = data['noisy_warped_flash']
 
-                noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
-                noise_std = tfu.estimate_std_jax(
-                    noisy, data['sig_read'], data['sig_shot'])
-                net_input = jnp.concatenate([noisy, noise_std], axis=-1)
+            noisy = jnp.concatenate([noisy_ambient, noisy_flash], axis=-1)
+            noise_std = tfu.estimate_std_jax(
+                noisy, data['sig_read'], data['sig_shot'])
+            net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
-                batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
-                mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False)
-                logger.takeStep()
-                mtrcs.append(mt)
-            except:
-                pass
-        
-        psnr = np.mean([i['psnr'] for i in mtrcs])
-        mse = np.mean([i['mse'] for i in mtrcs])
-        ssim = np.mean([i['ssim'] for i in mtrcs])
-        errors_dict['Level %d' % (4 - k)] = {'PSNR': str(psnr),'MSE':str(mse),'SSIM':str(ssim)}
-        errors['Level %d' % (4 - k)] = 'PSNR: %.3f, MSE: %.4f,SSIM: %.4f' % (psnr,mse,ssim)
+            batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
+            mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False,erreval=erreval)
+            logger.takeStep()
+            for key,v in mt.items():
+                if(not(key in mtrcs.keys())):
+                    mtrcs[key] = []
+
+            [mtrcs[key].append(v) for key,v in mt.items()]
+
+        mean_mtrcs = {key:'%.4f'%np.mean(np.array(v)) for key,v in mtrcs.items()}
+        errstr = ['%s: %s' %(key,v) for key,v in mean_mtrcs.items()]
+        errors_dict['Level %d' % (4 - k)] = mean_mtrcs
+        errors['Level %d' % (4 - k)] = ', '.join(errstr)
         print(errors['Level %d' % (4 - k)])
     logger.dumpDictJson(errors_dict,'test_errors',opts.mode)
     
