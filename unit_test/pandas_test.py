@@ -82,3 +82,10 @@ tex = createTexTable(method_name,metrics,noise_levels,data)
 print('******* MS-SSIM, SSIM *************')
 print(tex)
 
+metrics = ['PSNR','SSIM']
+metrics_id = ['psnr','ssim']
+data = createDataFile(method_fns,method_name,noise_levels,metrics,metrics_id,noise_levels_id)
+tex = createTexTable(method_name,metrics,noise_levels,data)
+print('******* PSNR, SSIM *************')
+print(tex)
+
