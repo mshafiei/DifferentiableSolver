@@ -59,7 +59,7 @@ method_fns = [
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1e2-psi1-128/test/test_errors.txt',
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-128/test/test_errors.txt',
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1e2-128/test/test_errors.txt',
-'/mshvol2/users/mohammad/optimization/deepfnf_fork/logs/deepfnf/test']
+'/mshvol2/users/mohammad/optimization/deepfnf_fork/logs/deepfnf/test/test_errors.txt']
 
 metrics = ['LPIPS-VGG','LPIPS-Alex']
 metrics_id = ['lpipsVGG','lpipsAlex']
