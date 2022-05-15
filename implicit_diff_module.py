@@ -58,7 +58,7 @@ class direct_model(nn.Module):
     
     def visualize(self,inpt):
         # _,aux = self(inpt)
-        return []
+        return {}
 
     def __call__(self,inpt):
         pred = self.quad_model(inpt['net_input'])
