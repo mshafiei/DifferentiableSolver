@@ -171,8 +171,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         imgs,labels = OrderedDict(),OrderedDict()
         imgs['pred'], imgs['ambient'], imgs['noisy'], imgs['noisy_dim'], imgs['flash'] = pred, ambient, noisy, noisy_dim, flash
         if('div' in viz_imgs.keys()):
-            div_sum = (aux['div'] ** 2).mean()
-            curl_sum = (aux['curl'] ** 2).mean()
+            div_sum = (aux['div'] ** 2).sum()
+            curl_sum = (aux['curl'] ** 2).sum()
             more_info = r' (\frac{1}{n}||\nabla \cdot g||^2 : %.02f, \frac{1}{n}||\nabla \times g||^2 : %.02f' % (div_sum, curl_sum)
         else:
             more_info = ''
@@ -206,8 +206,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         logger.save_params(params,batch,i)
     mtrcs = {k:v for k,v in mtrcs.items()}
     if('div' in aux.keys()):
-        div_sum = (aux['div'] ** 2).mean()
-        curl_sum = (aux['curl'] ** 2).mean()
+        div_sum = (aux['div'] ** 2).sum()
+        curl_sum = (aux['curl'] ** 2).sum()
         mtrcs.update({'div':div_sum,'curl':curl_sum})
     
     if('div_1'in aux.keys()):

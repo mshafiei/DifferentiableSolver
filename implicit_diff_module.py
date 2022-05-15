@@ -72,7 +72,7 @@ class direct_model(nn.Module):
         return loss_val, aux
 
     def labels(self):
-        return []
+        return {}
 
 class fft_solver(nn.Module):
     """Solves a screen poisson equation by an fft solver

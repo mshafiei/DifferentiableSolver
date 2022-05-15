@@ -17,7 +17,7 @@ exp_params="\
 --out_features 6 \
 --in_features 12 \
 --thickness $fcount \
---activation relu"
+--activation relu --store_params"
 
 
 priority='normal'
@@ -25,5 +25,5 @@ priority='normal'
 name=msh-fft-$mode-relu$fcount_suffix
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"
 
-# ./experiments/run_local.sh "$scriptFn"
-./experiments/run_server.sh "$scriptFn" "$name" "$priority"
+./experiments/run_local.sh "$scriptFn"
+# ./experiments/run_server.sh "$scriptFn" "$name" "$priority"
