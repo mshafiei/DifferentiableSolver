@@ -163,8 +163,9 @@ class fft_solver(nn.Module):
         out['dy'] = wb(dy) * 0.5 + 0.5
         div = utils.dx(gx) + utils.dy(gy)
         curl = utils.dy(gx) - utils.dx(gy)
-        out['div'] = cvgim.heatmap(div[0].mean(-1))[None,...]
-        out['curl'] = cvgim.heatmap(curl[0].mean(-1))[None,...]
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+            out['div'] = cvgim.heatmap(div[0].mean(-1))[None,...]
+            out['curl'] = cvgim.heatmap(curl[0].mean(-1))[None,...]
 
         
         if(self.fft_model == 'fft_helmholz'):
@@ -241,8 +242,9 @@ class fft_solver(nn.Module):
             gy = g[...,3:]
         loss_val = 0.
         aux['pred'] = pred
-        aux['div'] = utils.dx(gx) + utils.dy(gy)
-        aux['curl'] = utils.dy(gx) - utils.dx(gy)
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+            aux['div'] = utils.dx(gx) + utils.dy(gy)
+            aux['curl'] = utils.dy(gx) - utils.dx(gy)
         sg = lambda x: jax.lax.stop_gradient(x)
         if(self.opts.sse_weight > 0):
             aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()
