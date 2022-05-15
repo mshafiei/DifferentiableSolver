@@ -122,6 +122,8 @@ class fft_solver(nn.Module):
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
+            phi_heatmap = phi
+            a_heatmap = a
             phix = utils.dx(phi)
             phiy = utils.dy(phi)
             ax = utils.dx(a)
@@ -151,19 +153,29 @@ class fft_solver(nn.Module):
         gyy = utils.dy(gy)
         out = OrderedDict()
         out['pred2'] = wb(predict)
-        out['gxx'] = jnp.abs(wb(gxx))
-        out['dxx'] = jnp.abs(wb(dxx))
-        out['gyy'] = jnp.abs(wb(gyy))
-        out['dyy'] = jnp.abs(wb(dyy))
-        out['gx'] = jnp.abs(wb(gx))
-        out['dx'] = jnp.abs(wb(dx))
-        out['gy'] = jnp.abs(wb(gy))
-        out['dy'] = jnp.abs(wb(dy))
+        out['gxx'] = wb(gxx) * 0.5 + 0.5
+        out['dxx'] = wb(dxx) * 0.5 + 0.5
+        out['gyy'] = wb(gyy) * 0.5 + 0.5
+        out['dyy'] = wb(dyy) * 0.5 + 0.5
+        out['gx'] = wb(gx) * 0.5 + 0.5
+        out['dx'] = wb(dx) * 0.5 + 0.5
+        out['gy'] = wb(gy) * 0.5 + 0.5
+        out['dy'] = wb(dy) * 0.5 + 0.5
+        div = utils.dx(gx) + utils.dy(gy)
+        curl = utils.dy(gx) - utils.dx(gy)
+        out['div'] = cvgim.heatmap(div[0].mean(-1))[None,...]
+        out['curl'] = cvgim.heatmap(curl[0].mean(-1))[None,...]
+
         
         if(self.fft_model == 'fft_helmholz'):
-            out.update({'phix':jnp.abs(wb(phix)),'phiy':jnp.abs(wb(phiy)),'ax':jnp.abs(wb(ax)),'ay':jnp.abs(wb(ay))})
+            out['phix'] = wb(phix) * 0.5 + 0.5
+            out['phiy'] = wb(phiy) * 0.5 + 0.5
+            out['ax'] = wb(ax) * 0.5 + 0.5
+            out['ay'] = wb(ay) * 0.5 + 0.5
+            out['phi_heatmap'] = cvgim.heatmap(phi_heatmap[0].mean(-1))[None,...]
+            out['psi_heatmap'] = cvgim.heatmap(a_heatmap[0].mean(-1))[None,...]
         elif(self.fft_model == 'fft_image_grad'):
-            out.update({'g':jnp.abs(wb(g))})
+            out.update({'g':wb(g) * 0.5 + 0.5})
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input'])
             out.update({'alpha_map':jnp.concatenate([alpha,alpha,alpha],axis=-1)})
@@ -174,22 +186,26 @@ class fft_solver(nn.Module):
     def labels(self):
         out = OrderedDict()
         out['pred2'] = r'$I$'
-        out['gxx'] = r'$Unet~output (g^x_x) \times 1e3$'
-        out['dxx'] = r'$I_{xx} \times 1e3$'
-        out['gyy'] = r'$Unet~output (g^y_y) \times 1e3$'
-        out['dyy'] = r'$I_{yy} \times 1e3$'
-        out['gx'] = r'$Unet~output (g^x) \times 1e3.$'
-        out['dx'] = r'$I_{x} \times 1e3$'
-        out['gy'] = r'$Unet~output (g^y) \times 1e3$'
-        out['dy'] = r'$I_{y} \times 1e3$'
+        out['gxx'] = r'$Unet~output (g^x_x)$'
+        out['dxx'] = r'$I_{xx}$'
+        out['gyy'] = r'$Unet~output (g^y_y)$'
+        out['dyy'] = r'$I_{yy}$'
+        out['gx'] = r'$Unet~output (g^x)$'
+        out['dx'] = r'$I_{x}$'
+        out['gy'] = r'$Unet~output (g^y)$'
+        out['dy'] = r'$I_{y}$'
+        out['div'] = r'$\nabla \cdot g$'
+        out['curl'] = r'$\nabla \times g$'
         if(self.fft_model == 'fft_helmholz'):
-            out['phix'] = r'$\nabla_x \phi \times1e3$'
-            out['phiy'] = r'$\nabla_y \phi \times1e3$'
-            out['ax'] = r'$\nabla_x a \times1e3$'
-            out['ay'] = r'$\nabla_y a \times1e3$'
+            out['phix'] = r'$\nabla_x \phi$'
+            out['phiy'] = r'$\nabla_y \phi$'
+            out['ax'] = r'$\nabla_x \psi$'
+            out['ay'] = r'$\nabla_y \psi$'
+            out['phi_heatmap'] = r'$\phi$'
+            out['psi_heatmap'] = r'$\psi$'
 
         elif(self.fft_model == 'fft_image_grad'):
-            out['g'] = '$Unet output \times 1.$'
+            out['g'] = '$Unet output$'
         if(self.alpha_type == 'map_2d'):
             out['alpha_map'] = '$\lambda$'
         return out
@@ -225,6 +241,8 @@ class fft_solver(nn.Module):
             gy = g[...,3:]
         loss_val = 0.
         aux['pred'] = pred
+        aux['div'] = utils.dx(gx) + utils.dy(gy)
+        aux['curl'] = utils.dy(gx) - utils.dx(gy)
         sg = lambda x: jax.lax.stop_gradient(x)
         if(self.opts.sse_weight > 0):
             aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()

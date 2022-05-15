@@ -29,10 +29,10 @@ fcount_suffix=-128
 # helmholz="--delta_phi_init 1. --delta_psi_init 0.01 --expname fft_helmholze-phi1-psi1e2$fcount_suffix"
 # name=msh-fft-solver-$mode-helmholze-phi1e2-psi1-relu-$fcount
 # helmholz="--delta_phi_init 0.01 --delta_psi_init 1. --expname fft_helmholze-phi1e2-psi1$fcount_suffix"
-# name=msh-fft-solver-$mode-helmholze-phi1-psi1-relu-$fcount
-# helmholz="--delta_phi_init 1. --delta_psi_init 1. --expname fft_helmholze-phi1-psi1$fcount_suffix"
-name=msh-fft-solver-$mode-helmholze-phi1-psi1-fixed-relu-$fcount
-helmholz="--delta_phi_init 1. --delta_psi_init 1. --fixed_delta --expname fft_helmholze-phi1-psi1-fixed$fcount_suffix"
+name=msh-fft-solver-$mode-helmholze-phi1-psi1-relu-$fcount
+helmholz="--delta_phi_init 1. --delta_psi_init 1. --expname fft_helmholze-phi1-psi1$fcount_suffix"
+# name=msh-fft-solver-$mode-helmholze-phi1-psi1-fixed-relu-$fcount
+# helmholz="--delta_phi_init 1. --delta_psi_init 1. --fixed_delta --expname fft_helmholze-phi1-psi1-fixed$fcount_suffix"
 
 exp_params="\
 --mode $mode \
@@ -47,7 +47,7 @@ exp_params="\
 --activation relu \
 --max_iter 1500000 --store_params"
 
-priority='normal'
+priority='nice'
 
 
 

@@ -6,8 +6,11 @@ source ./experiments/solver_params.sh
 mode=train
 fcount=64
 fcount_suffix=
-
-expname=fft-solver-filters-90-factor1
+factor=1
+out_features=330
+kernel_count=110
+outc_kernel_size=3
+expname=fft-solver-filters-$kernel_count-factor$factor
 name=msh-$expname
 
 exp_params="\
@@ -20,14 +23,15 @@ exp_params="\
 --batch_size 1 \
 --thickness $fcount \
 --in_features 12 \
---out_features 270 \
---unet_factor 1 \
+--out_features $out_features \
+--unet_factor $factor \
 --activation relu \
 --kernel_channels 3 \
---kernel_count 90 \
+--kernel_count $kernel_count \
+--outc_kernel_size $outc_kernel_size \
 --kernel_size 15"
 
-priority='nice'
+priority='normal'
 
 # name=msh-fft-solver-train-helmholze-3
 scriptFn="unet_test/implicit_nonlin_screen_poisson.py $exp_params $homography_params $logger_params $noise_params $solver_params"

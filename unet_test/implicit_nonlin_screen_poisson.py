@@ -104,7 +104,7 @@ rng = jax.random.PRNGKey(2)
 rng, init_rng = jax.random.split(rng)
 
 
-visualize_model = jax.jit(lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
+visualize_model = lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize)
 apply = jax.jit(lambda params,batch :diffable_solver.apply(params,batch))
 # visualize_model = (lambda params,batch :diffable_solver.apply(params, batch, method=diffable_solver.visualize))
 # apply = (lambda params,batch :diffable_solver.apply(params,batch))
@@ -170,12 +170,20 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
         imgs,labels = OrderedDict(),OrderedDict()
         imgs['pred'], imgs['ambient'], imgs['noisy'], imgs['noisy_dim'], imgs['flash'] = pred, ambient, noisy, noisy_dim, flash
+        if('div' in viz_imgs.keys()):
+            div_sum = (aux['div'] ** 2).mean()
+            curl_sum = (aux['curl'] ** 2).mean()
+            more_info = r' (\frac{1}{n}||\nabla \cdot g||^2 : %.02f, \frac{1}{n}||\nabla \times g||^2 : %.02f' % (div_sum, curl_sum)
+        else:
+            more_info = ''
         imgs.update(viz_imgs)
         labels['pred'] = r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],mtrcs['mse'])
         labels['ambient'] = r'$Ground~Truth~(I_{ambient})$'
         labels['noisy'] = r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f,\alpha:~%.2f$'%(mtrcs_noisy['psnr'], mtrcs_noisy['mse'],1./batch['alpha'])
         labels['noisy_dim'] = r'$Noisy~input~dim$'
         labels['flash'] = r'$Flash~input~(I_{flash})$'
+        if('dx' in labels_ret.keys()):
+            labels_ret['dx'] = labels_ret['dx'][:-1] + more_info + labels_ret['dx'][-1]
                     
         labels.update(labels_ret)
         if('alpha' in params['params'].keys()):
@@ -197,6 +205,11 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
     if(save_params):
         logger.save_params(params,batch,i)
     mtrcs = {k:v for k,v in mtrcs.items()}
+    if('div' in aux.keys()):
+        div_sum = (aux['div'] ** 2).mean()
+        curl_sum = (aux['curl'] ** 2).mean()
+        mtrcs.update({'div':div_sum,'curl':curl_sum})
+    
     if('div_1'in aux.keys()):
         mtrcs.update({'div_1':aux['div_1']})
     if('curl_1'in aux.keys()):
