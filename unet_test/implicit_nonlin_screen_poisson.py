@@ -25,7 +25,7 @@ import deepfnf_utils.np_utils as np_utils
 from collections import OrderedDict
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
+    choices=['implicit_sanity_model','fft_highdim_nohelmholz','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=50000, type=int,help='Display frequency by iteration count')
@@ -86,7 +86,7 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
-elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters' or opts.model == 'fft_highdim'):
+elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters' or opts.model == 'fft_highdim' or opts.model == 'fft_highdim_nohelmholz'):
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,delta_phi_init=opts.delta_phi_init,delta_psi_init=opts.delta_psi_init,fixed_delta=opts.fixed_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,
@@ -146,7 +146,7 @@ if(data is not None):
     print('Parameters loaded successfully')
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add_scalars=True,ignorelist='',t=None):
+def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add_scalars=True,ignorelist='',t=None,method_name=''):
     _,aux = apply(params,batch)
 
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
@@ -177,6 +177,9 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         else:
             more_info = ''
         imgs.update(viz_imgs)
+        annotation = {}
+        if(erreval):
+            annotation = {'pred':r'$%s:PSNR, ~%.3f, SSIM, ~%.3f$'%(method_name,mtrcs['psnr'],mtrcs['ssim']),'noisy':r'$PSNR:~%.3f,SSIM:~%.3f$'%(mtrcs_noisy['psnr'],mtrcs_noisy['ssim'])}
         labels['pred'] = r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],mtrcs['mse'])
         labels['ambient'] = r'$Ground~Truth~(I_{ambient})$'
         labels['noisy'] = r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f,\alpha:~%.2f$'%(mtrcs_noisy['psnr'], mtrcs_noisy['mse'],1./batch['alpha'])
@@ -196,7 +199,13 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
             strdelta = 'N/A'
         
         if(mode == 'test'):
-            logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
+            imgs_sl,labels_sl = OrderedDict(), OrderedDict()
+            imgs_sl['pred'],labels_sl['pred'] = imgs['pred'],labels['pred']
+            imgs_sl['ambient'],labels_sl['ambient'] = imgs['ambient'],labels['ambient']
+            imgs_sl['noisy'],labels_sl['noisy'] = imgs['noisy'],labels['noisy']
+            imgs_sl['flash'],labels_sl['flash'] = imgs['flash'],labels['flash']
+            logger.addImage(imgs_sl,labels_sl,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
+            # logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
         else:
             logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
         if(opts.model != 'unet'):
@@ -300,7 +309,13 @@ elif(opts.mode == 'test'):
             net_input = jnp.concatenate([noisy, noise_std], axis=-1)
 
             batch = {'net_input':net_input,'noisy':noisy_ambient,'ambient':data['ambient'],'flash':noisy_flash,'alpha':data['alpha'],'noise_std':noise_std,'color_matrix':data['color_matrix'],'adapt_matrix':data['adapt_matrix']}
-            mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False,erreval=erreval)
+            method_name = ''
+            if('fft' in opts.model):
+                method_name = 'Ours'
+            else:
+                method_name = 'U-Net'
+
+            mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False,erreval=erreval,method_name=method_name)
             logger.takeStep()
             for key,v in mt.items():
                 if(not(key in mtrcs.keys())):

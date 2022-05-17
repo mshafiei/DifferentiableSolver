@@ -13,6 +13,7 @@ import cvgutils.Image as cvgim
 from functools import partial
 import cvgutils.nn.jaxUtils.utils as jaxutils
 from collections import OrderedDict
+import numpy as np
 #diff solve(module)
 #setup()
 #  self.quadratic_model with primal parameters
@@ -114,9 +115,10 @@ class fft_solver(nn.Module):
     def visualize(self,inpt):
         predict,g = self.fft(inpt)
         
+        wb_noscale = lambda x : tfu.camera_to_rgb_batch(x,inpt)
         wb = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
         # g = self.quad_model(inpt['net_input'])
-        if(self.fft_model == 'fft_filters' or self.fft_model == 'fft_highdim'):
+        if(self.fft_model == 'fft_filters' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             gx = predict * 0
             gy = predict * 0
         elif(self.fft_model == 'fft_helmholz'):
@@ -128,6 +130,10 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
+            curlrota = utils.dx(ax) + utils.dy(ay)
+            divgradphi = utils.dx(phix) + utils.dy(phiy)
+            divcurl = jnp.concatenate((curlrota,divgradphi),axis=-1)
+            divcurlmin, divcurlmax = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
             if(self.fixed_delta):
                 gx = self.delta_psi_init * phix - self.delta_phi_init * ay
                 gy = self.delta_psi_init * phiy + self.delta_phi_init * ax
@@ -161,20 +167,36 @@ class fft_solver(nn.Module):
         out['dx'] = wb(dx) * 0.5 + 0.5
         out['gy'] = wb(gy) * 0.5 + 0.5
         out['dy'] = wb(dy) * 0.5 + 0.5
+        out['noisyx'] = wb(utils.dx(inpt['noisy'])) * 0.5 + 0.5
+        out['noisyy'] = wb(utils.dy(inpt['noisy'])) * 0.5 + 0.5
+        out['ambientx'] = wb_noscale(utils.dx(inpt['ambient'])) * 0.5 + 0.5
+        out['ambienty'] = wb_noscale(utils.dy(inpt['ambient'])) * 0.5 + 0.5
+        out['flashx'] = wb_noscale(utils.dx(inpt['flash'])) * 0.5 + 0.5
+        out['flashy'] = wb_noscale(utils.dy(inpt['flash'])) * 0.5 + 0.5
         div = utils.dx(gx) + utils.dy(gy)
         curl = utils.dy(gx) - utils.dx(gy)
-        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
-            out['div'] = cvgim.heatmap(div[0].mean(-1))[None,...]
-            out['curl'] = cvgim.heatmap(curl[0].mean(-1))[None,...]
 
+        divcurl = jnp.concatenate((div[0].mean(-1),curl[0].mean(-1)),axis=-1)
         
         if(self.fft_model == 'fft_helmholz'):
             out['phix'] = wb(phix) * 0.5 + 0.5
             out['phiy'] = wb(phiy) * 0.5 + 0.5
             out['ax'] = wb(ax) * 0.5 + 0.5
             out['ay'] = wb(ay) * 0.5 + 0.5
-            out['phi_heatmap'] = cvgim.heatmap(phi_heatmap[0].mean(-1))[None,...]
-            out['psi_heatmap'] = cvgim.heatmap(a_heatmap[0].mean(-1))[None,...]
+            divcurl = jnp.concatenate((divcurl,phi_heatmap[0].mean(-1),a_heatmap[0].mean(-1)),axis=-1)
+            min_val,max_val = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
+            out['phi_heatmap'] = cvgim.heatmap(phi_heatmap[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
+            out['psi_heatmap'] = cvgim.heatmap(a_heatmap[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
+            out['rotax'] = wb(-ay) * 0.5 + 0.5
+            out['rotay'] = wb(ax) * 0.5 + 0.5
+            out['divgradphi'] = cvgim.heatmap(divgradphi[0].mean(-1),zmin=divcurlmin, zmax=divcurlmax)[None,...]
+            out['curlrota'] = cvgim.heatmap(curlrota[0].mean(-1),zmin=divcurlmin, zmax=divcurlmax)[None,...]
+        
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+            min_val,max_val = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
+            out['div'] = cvgim.heatmap(div[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
+            out['curl'] = cvgim.heatmap(curl[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
+
         elif(self.fft_model == 'fft_image_grad'):
             out.update({'g':wb(g) * 0.5 + 0.5})
         if(self.alpha_type == 'map_2d'):
@@ -195,8 +217,13 @@ class fft_solver(nn.Module):
         out['dx'] = r'$I_{x}$'
         out['gy'] = r'$Unet~output (g^y)$'
         out['dy'] = r'$I_{y}$'
-        out['div'] = r'$\nabla \cdot g$'
-        out['curl'] = r'$\nabla \times g$'
+        out['noisyx'] = r'$\nabla_x I_{noisy}$'
+        out['noisyy'] = r'$\nabla_y I_{noisy}$'
+        out['ambientx'] = r'$\nabla_x I_{ambient}$'
+        out['ambienty'] = r'$\nabla_y I_{ambient}$'
+        out['flashx'] = r'$\nabla_x I_{flash}$'
+        out['flashy'] = r'$\nabla_y I_{flash}$'
+
         if(self.fft_model == 'fft_helmholz'):
             out['phix'] = r'$\nabla_x \phi$'
             out['phiy'] = r'$\nabla_y \phi$'
@@ -204,6 +231,14 @@ class fft_solver(nn.Module):
             out['ay'] = r'$\nabla_y \psi$'
             out['phi_heatmap'] = r'$\phi$'
             out['psi_heatmap'] = r'$\psi$'
+            out['rotax'] = r'$rot(\nabla \psi)^x$'
+            out['rotay'] = r'$rot(\nabla \psi)^y$'
+            out['divgradphi'] = r'$div(\phi))$'
+            out['curlrota'] = r'$curl(rot(\nabla \psi))$'
+        
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+            out['div'] = r'$\nabla \cdot g$'
+            out['curl'] = r'$\nabla \times g$'
 
         elif(self.fft_model == 'fft_image_grad'):
             out['g'] = '$Unet output$'
@@ -298,6 +333,19 @@ class fft_solver(nn.Module):
             else:
                 dx = nn.softplus(self.delta_psi_init) * phix - nn.softplus(self.delta_phi_init) * ay
                 dy = nn.softplus(self.delta_psi_init) * phiy + nn.softplus(self.delta_phi_init) * ax
+            dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
+            dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
+
+            func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
+            i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
+            i_denoise = self.quad_model.high2lowdim(i_denoise_highdim)
+        elif(self.fft_model == 'fft_highdim_nohelmholz'):
+            g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
+            lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
+            noisy_high = self.quad_model.low2highdim(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
+            dx = g[...,::2]
+            dy = g[...,1::2]
+
             dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
             dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
 

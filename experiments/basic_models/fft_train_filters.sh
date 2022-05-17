@@ -6,12 +6,17 @@ source ./experiments/solver_params.sh
 mode=train
 fcount=64
 fcount_suffix=
-factor=1
-out_features=330
-kernel_count=110
+factor=2
+# out_features=330
+# kernel_count=110
+# outc_kernel_size=3
+
+out_features=240
+kernel_count=80
 outc_kernel_size=3
+
 expname=fft-solver-filters-$kernel_count-factor$factor
-name=msh-$expname
+name=msh-$mode-$expname
 
 exp_params="\
 --mode $mode \
@@ -29,7 +34,8 @@ exp_params="\
 --kernel_channels 3 \
 --kernel_count $kernel_count \
 --outc_kernel_size $outc_kernel_size \
---kernel_size 15"
+--kernel_size 15 \
+--max_iter 2500000"
 
 priority='normal'
 
