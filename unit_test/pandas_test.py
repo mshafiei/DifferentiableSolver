@@ -49,10 +49,10 @@ noise_levels = ['100x','50x','25x','12x']
 noise_levels_id = ['Level 4','Level 3','Level 2','Level 1']
 
 method_name = [
-r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=1$ fixed',
-r'Ours $\lambda_{\phi}=0.01,\lambda_{\psi}=1$ learned',
-r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=1$ learned',
-r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=0.01$ learned',r'DeepFnF']
+r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=1$',
+r'Ours $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
+r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=1$',
+r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$',r'DeepFnF']
 
 method_fns = [
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-fixed-128/test/test_errors.txt',
@@ -60,6 +60,19 @@ method_fns = [
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-128/test/test_errors.txt',
 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1e2-128/test/test_errors.txt',
 '/mshvol2/users/mohammad/optimization/deepfnf_fork/logs/deepfnf/test/test_errors.txt']
+
+method_name += [
+r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=0.01$',
+r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
+r'Ours HD $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$',
+r'Ours HD $\lambda_{\phi}=1,\lambda_{\psi}=1$',r'DeepFnF']
+
+method_fns += [
+'logger/fft-highdim-phi01-psi01-64/fft-highdim-phi01-psi01-64/test/test_errors.txt',
+'logger/fft-highdim-phi01-psi1-64/fft-highdim-phi01-psi1-64/test/test_errors.txt',
+'logger/fft-highdim-phi1-psi01-64/fft-highdim-phi1-psi01-64/test/test_errors.txt',
+'logger/fft-highdim-phi1-psi1-fixed-64/fft-highdim-phi1-psi1-fixed-64/test/test_errors.txt']
+
 
 metrics = ['LPIPS-VGG','LPIPS-Alex']
 metrics_id = ['lpipsVGG','lpipsAlex']
