@@ -136,8 +136,8 @@ class fft_solver(nn.Module):
             divcurl = jnp.concatenate((curlrota,divgradphi),axis=-1)
             divcurlmin, divcurlmax = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
         elif(self.fft_model == 'fft_highdim_nohelmholz'):
-            gx = aux['g'][...,0:5:2]
-            gy = aux['g'][...,1:6:2]
+            gx = aux['gx'][...,0:3]
+            gy = aux['gy'][...,0:3]
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
