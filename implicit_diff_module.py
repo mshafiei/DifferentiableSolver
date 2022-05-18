@@ -281,8 +281,8 @@ class fft_solver(nn.Module):
             ax = aux_fft['psix'][...,0:5:2]
             ay = aux_fft['psiy'][...,1:6:2]
         elif(self.fft_model == 'fft_highdim_nohelmholz'):
-            gx = aux_fft['g'][...,0:5:2]
-            gy = aux_fft['g'][...,1:6:2]
+            gx = aux_fft['gx'][...,0:3]
+            gy = aux_fft['gy'][...,0:3]
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
