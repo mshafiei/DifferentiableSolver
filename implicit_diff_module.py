@@ -113,14 +113,31 @@ class fft_solver(nn.Module):
                 jnp.log(jnp.exp(jnp.double(self.delta_psi_init)) - 1),
                 jnp.array,0,0)
     def visualize(self,inpt):
-        predict,g = self.fft(inpt)
-        
+        predict,g,aux = self.fft(inpt)
+        div_func = lambda x,y:utils.dx(x) + utils.dy(y)
+        curl_func = lambda x,y:utils.dx(y) - utils.dy(x)
         wb_noscale = lambda x : tfu.camera_to_rgb_batch(x,inpt)
         wb = lambda x : tfu.camera_to_rgb_batch(x/inpt['alpha'],inpt)
         # g = self.quad_model(inpt['net_input'])
-        if(self.fft_model == 'fft_filters' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
+        if(self.fft_model == 'fft_filters'):
             gx = predict * 0
             gy = predict * 0
+        elif(self.fft_model == 'fft_highdim'):
+            gx = aux['gx'][...,:5:2]
+            gy = aux['gy'][...,1:6:2]
+            phix = aux['phix'][...,0:5:2]
+            phiy = aux['phiy'][...,1:6:2]
+            ax = aux['psix'][...,0:5:2]
+            ay = aux['psiy'][...,1:6:2]
+            phi_heatmap = aux['phi'][...,0:5:2]
+            a_heatmap = aux['psi'][...,1:6:2]
+            curlrota = curl_func(-aux['psiy'],aux['psix'])
+            divgradphi = div_func(aux['phix'],aux['phiy'])
+            divcurl = jnp.concatenate((curlrota,divgradphi),axis=-1)
+            divcurlmin, divcurlmax = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
+        elif(self.fft_model == 'fft_highdim_nohelmholz'):
+            gx = aux['g'][...,0:5:2]
+            gy = aux['g'][...,1:6:2]
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
@@ -130,8 +147,8 @@ class fft_solver(nn.Module):
             phiy = utils.dy(phi)
             ax = utils.dx(a)
             ay = utils.dy(a)
-            curlrota = utils.dx(ax) + utils.dy(ay)
-            divgradphi = utils.dx(phix) + utils.dy(phiy)
+            curlrota = curl_func(-ay,ax)
+            divgradphi = div_func(phix,phiy)
             divcurl = jnp.concatenate((curlrota,divgradphi),axis=-1)
             divcurlmin, divcurlmax = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
             if(self.fixed_delta):
@@ -178,7 +195,7 @@ class fft_solver(nn.Module):
 
         divcurl = jnp.concatenate((div[0].mean(-1),curl[0].mean(-1)),axis=-1)
         
-        if(self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft_helmholz' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             out['phix'] = wb(phix) * 0.5 + 0.5
             out['phiy'] = wb(phiy) * 0.5 + 0.5
             out['ax'] = wb(ax) * 0.5 + 0.5
@@ -192,7 +209,7 @@ class fft_solver(nn.Module):
             out['divgradphi'] = cvgim.heatmap(divgradphi[0].mean(-1),zmin=divcurlmin, zmax=divcurlmax)[None,...]
             out['curlrota'] = cvgim.heatmap(curlrota[0].mean(-1),zmin=divcurlmin, zmax=divcurlmax)[None,...]
         
-        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'  or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             min_val,max_val = float(np.array(divcurl.min())),float(np.array(divcurl.max()))
             out['div'] = cvgim.heatmap(div[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
             out['curl'] = cvgim.heatmap(curl[0].mean(-1),zmin=min_val,zmax=max_val)[None,...]
@@ -224,7 +241,7 @@ class fft_solver(nn.Module):
         out['flashx'] = r'$\nabla_x I_{flash}$'
         out['flashy'] = r'$\nabla_y I_{flash}$'
 
-        if(self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft_helmholz'  or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             out['phix'] = r'$\nabla_x \phi$'
             out['phiy'] = r'$\nabla_y \phi$'
             out['ax'] = r'$\nabla_x \psi$'
@@ -236,7 +253,7 @@ class fft_solver(nn.Module):
             out['divgradphi'] = r'$div(\phi))$'
             out['curlrota'] = r'$curl(rot(\nabla \psi))$'
         
-        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'  or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             out['div'] = r'$\nabla \cdot g$'
             out['curl'] = r'$\nabla \times g$'
 
@@ -250,12 +267,22 @@ class fft_solver(nn.Module):
         
         
     def __call__(self,inpt):
-        pred,g = self.fft(inpt)
+        pred,g,aux_fft= self.fft(inpt)
         aux = {}
         fft_solution = jnp.clip(tfu.camera_to_rgb_batch(pred/inpt['alpha'],inpt),0,1)
         ambient = jnp.clip(tfu.camera_to_rgb_batch(inpt['ambient'],inpt),0,1)
         if(self.fft_model == 'fft_filters'):
             pass
+        elif(self.fft_model == 'fft_highdim'):
+            gx = aux_fft['gx'][...,:5:2]
+            gy = aux_fft['gy'][...,1:6:2]
+            phix = aux_fft['phix'][...,0:5:2]
+            phiy = aux_fft['phiy'][...,1:6:2]
+            ax = aux_fft['psix'][...,0:5:2]
+            ay = aux_fft['psiy'][...,1:6:2]
+        elif(self.fft_model == 'fft_highdim_nohelmholz'):
+            gx = aux_fft['g'][...,0:5:2]
+            gy = aux_fft['g'][...,1:6:2]
         elif(self.fft_model == 'fft_helmholz'):
             phi = g[...,:3]
             a = g[...,3:]
@@ -277,7 +304,7 @@ class fft_solver(nn.Module):
             gy = g[...,3:]
         loss_val = 0.
         aux['pred'] = pred
-        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz'):
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
             aux['div'] = utils.dx(gx) + utils.dy(gy)
             aux['curl'] = utils.dy(gx) - utils.dx(gy)
         sg = lambda x: jax.lax.stop_gradient(x)
@@ -311,6 +338,7 @@ class fft_solver(nn.Module):
 
     def fft(self,inpt,inim=None):
         b,h,w,c = inpt['noisy'].shape
+        aux = {}
         if(self.alpha_type == 'map_2d'):
             alpha = self.alpha(inpt['net_input']).transpose(0,3,1,2).reshape(-1,h,w)
         elif(self.alpha_type == 'scalar'):
@@ -339,6 +367,14 @@ class fft_solver(nn.Module):
             func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
             i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
             i_denoise = self.quad_model.high2lowdim(i_denoise_highdim)
+            aux['gx'] = dx.reshape(b,phix.shape[-1],h,w).transpose(0,2,3,1)
+            aux['gy'] = dy.reshape(b,phix.shape[-1],h,w).transpose(0,2,3,1)
+            aux['phi'] = phi
+            aux['psi'] = a
+            aux['phix'] = phix
+            aux['phiy'] = phiy
+            aux['psix'] = ax
+            aux['psiy'] = ay
         elif(self.fft_model == 'fft_highdim_nohelmholz'):
             g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
             lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
@@ -352,6 +388,8 @@ class fft_solver(nn.Module):
             func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
             i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
             i_denoise = self.quad_model.high2lowdim(i_denoise_highdim)
+            aux['gx'] = g[...,::2]
+            aux['gy'] = g[...,1::2]
         elif(self.fft_model == 'fft_filters'):
             assert self.opts.out_features == self.opts.kernel_count * self.opts.kernel_channels
             g, kernel = self.quad_model(inpt['net_input'])
@@ -391,7 +429,7 @@ class fft_solver(nn.Module):
             i_denoise = jnp.stack(list(func)).reshape(b,c,h,w).transpose(0,2,3,1)
         # dx = g[...,:3].transpose(0,3,1,2).reshape(-1,h,w)
         # dy = g[...,3:].transpose(0,3,1,2).reshape(-1,h,w)
-        return i_denoise, g
+        return i_denoise, g, aux
         # noisy = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/noisy.png')
         # gt = cvgim.imread('/home/mohammad/Projects/optimizer/DifferentiableSolver/logger/fft_solver/gt.png')
 

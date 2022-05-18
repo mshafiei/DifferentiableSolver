@@ -48,32 +48,46 @@ def createDataFile(method_fns,method_name,noise_levels,metrics,metrics_id,noise_
 noise_levels = ['100x','50x','25x','12x']
 noise_levels_id = ['Level 4','Level 3','Level 2','Level 1']
 
+# method_name = [
+# r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=1$',
+# r'Ours $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
+# r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=1$',
+# r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$']
+
+# method_fns = [
+# 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-fixed-128/test/test_errors.txt',
+# 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1e2-psi1-128/test/test_errors.txt',
+# 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-128/test/test_errors.txt',
+# 'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1e2-128/test/test_errors.txt']
+
+# method_name += [
+# r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=0.01$',
+# r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
+# r'Ours HD $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$',
+# r'Ours HD $\lambda_{\phi}=1,\lambda_{\psi}=1$',]
+
+# method_fns += [
+# 'logger/fft-highdim-phi01-psi01-64/fft-highdim-phi01-psi01-64/test/test_errors.txt',
+# 'logger/fft-highdim-phi01-psi1-64/fft-highdim-phi01-psi1-64/test/test_errors.txt',
+# 'logger/fft-highdim-phi1-psi01-64/fft-highdim-phi1-psi01-64/test/test_errors.txt',
+# 'logger/fft-highdim-phi1-psi1-fixed-64/fft-highdim-phi1-psi1-fixed-64/test/test_errors.txt',
+# '/mshvol2/users/mohammad/optimization/DifferentiableSolver/logger/fft-highdim-nohelmholz-64/fft-highdim-nohelmholz-64/test/test_errors.txt']
+
+
 method_name = [
-r'Ours $\lambda_{\phi}=1,\lambda_{\psi}=1$',
-r'Ours $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
-r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=1$',
-r'Ours $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$']
+'Ours (learned Fixed HP)',
+'Ours (learned HP)',
+'Ours (unconstrained)']
 
 method_fns = [
-'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-fixed-128/test/test_errors.txt',
-'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1e2-psi1-128/test/test_errors.txt',
-'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1-128/test/test_errors.txt',
-'logger/fft_solver_largeds_relu-128/fft_helmholze-phi1-psi1e2-128/test/test_errors.txt']
-
-method_name += [
-r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=0.01$',
-r'Ours HD $\lambda^0_{\phi}=0.01,\lambda^0_{\psi}=1$',
-r'Ours HD $\lambda^0_{\phi}=1,\lambda^0_{\psi}=0.01$',
-r'Ours HD $\lambda_{\phi}=1,\lambda_{\psi}=1$']
-
-method_fns += [
+'logger/fft-highdim-phi1-psi1-fixed-64/fft-highdim-phi1-psi1-fixed-64/test/test_errors.txt',
 'logger/fft-highdim-phi01-psi01-64/fft-highdim-phi01-psi01-64/test/test_errors.txt',
-'logger/fft-highdim-phi01-psi1-64/fft-highdim-phi01-psi1-64/test/test_errors.txt',
-'logger/fft-highdim-phi1-psi01-64/fft-highdim-phi1-psi01-64/test/test_errors.txt',
-'logger/fft-highdim-phi1-psi1-fixed-64/fft-highdim-phi1-psi1-fixed-64/test/test_errors.txt']
+'logger/fft_solver_largeds-relu/fft/test/test_errors.txt']
+# '/mshvol2/users/mohammad/optimization/DifferentiableSolver/logger/fft-highdim-nohelmholz-64/fft-highdim-nohelmholz-64/test/test_errors.txt']
 
-method_name += [r'DeepFnF']
-method_fns += ['/mshvol2/users/mohammad/optimization/deepfnf_fork/logs/deepfnf/test/test_errors.txt']
+method_name += ['U-Net','DeepFnF']
+method_fns += ['logger/fft_solver_largeds-relu-128/unet/test/test_errors.txt',
+'/mshvol2/users/mohammad/optimization/deepfnf_fork/logs/deepfnf/test/test_errors.txt']
 
 # metrics = ['LPIPS-VGG','LPIPS-Alex']
 # metrics_id = ['lpipsVGG','lpipsAlex']

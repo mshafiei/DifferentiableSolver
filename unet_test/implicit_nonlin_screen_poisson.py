@@ -204,7 +204,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
             imgs_sl['ambient'],labels_sl['ambient'] = imgs['ambient'],labels['ambient']
             imgs_sl['noisy'],labels_sl['noisy'] = imgs['noisy'],labels['noisy']
             imgs_sl['flash'],labels_sl['flash'] = imgs['flash'],labels['flash']
-            logger.addImage(imgs_sl,labels_sl,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
+            logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
+            # logger.addImage(imgs_sl,labels_sl,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
             # logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
         else:
             logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
