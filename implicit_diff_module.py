@@ -195,7 +195,7 @@ class fft_solver(nn.Module):
 
         divcurl = jnp.concatenate((div[0].mean(-1),curl[0].mean(-1)),axis=-1)
         
-        if(self.fft_model == 'fft_helmholz' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
+        if(self.fft_model == 'fft_helmholz' or self.fft_model == 'fft_highdim'):
             out['phix'] = wb(phix) * 0.5 + 0.5
             out['phiy'] = wb(phiy) * 0.5 + 0.5
             out['ax'] = wb(ax) * 0.5 + 0.5

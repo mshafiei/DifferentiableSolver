@@ -6,7 +6,7 @@ source ./experiments/solver_params.sh
 mode=train
 fcount=64
 fcount_suffix=
-factor=2
+factor=1
 # out_features=330
 # kernel_count=110
 # outc_kernel_size=3
