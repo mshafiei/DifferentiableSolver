@@ -19,7 +19,7 @@ conda activate deepfnf
 cp /root/ssh_mount/id_rsa* /root/.ssh/
 chmod 400 ~/.ssh/id_rsa
 apt-get update
-pip3 install imageio
+pip3 install imageio clu
 sudo apt-get -y install exiftool
 pip3 install PyExifTool piq lpips plotly==5.6.0 pandas kaleido jinja2
 pip3 install --upgrade pip
