@@ -178,7 +178,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=No
         mtrcs.update({'msssim':piq_metrics_pred['msssim'],'lpipsVGG':piq_metrics_pred['lpipsVGG'],'lpipsAlex':piq_metrics_pred['lpipsAlex']})
         mtrcs_noisy.update({'msssim':piq_metrics_noisy['msssim'],'lpipsVGG':piq_metrics_noisy['lpipsVGG'],'lpipsAlex':piq_metrics_noisy['lpipsAlex']})
 
-    mtrcs_str = ''.join([' %s:%.5f, lr:%.7f' % (k,v,get_lr(1.1e6+state[0])) for k,v in mtrcs.items()])
+    mtrcs_str = ''.join([' %s:%.5f, lr:%.7f' % (k,v,get_lr(state[0])) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
     if(display):
@@ -224,12 +224,12 @@ def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=No
             imgs_sl['ambient'],labels_sl['ambient'] = imgs['ambient'],labels['ambient']
             imgs_sl['noisy'],labels_sl['noisy'] = imgs['noisy'],labels['noisy']
             imgs_sl['flash'],labels_sl['flash'] = imgs['flash'],labels['flash']
-            logger.addIndividualImages(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation,ltype='filesystem')
+            logger.addIndividualImages(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation,ltype='filesystem',ltype='html')
             # logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
             # logger.addImage(imgs_sl,labels_sl,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
             # logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
         else:
-            logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta))
+            logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),ltype='html')
         if(opts.model != 'unet'):
             logger.createTeaser(imgs,labels,'Teaser',dim_type='BHWC',mode=mode)
 
