@@ -3,7 +3,7 @@ source ./experiments/homography_params_static.sh
 source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
-mode=train
+mode=test
 fcount=64
 fcount_suffix=
 factor=1
@@ -11,8 +11,8 @@ factor=1
 # kernel_count=110
 # outc_kernel_size=3
 
-out_features=240
-kernel_count=80
+out_features=270
+kernel_count=90
 outc_kernel_size=3
 
 expname=fft-solver-filters-$kernel_count-factor$factor

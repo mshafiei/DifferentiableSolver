@@ -23,6 +23,7 @@ import cvgutils.nn.jaxUtils.utils as jaxutils
 import functools
 import deepfnf_utils.np_utils as np_utils
 from collections import OrderedDict
+from clu import parameter_overview
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
     choices=['implicit_sanity_model','fft_highdim_nohelmholz','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
@@ -112,9 +113,11 @@ ssim_fn = jax.jit(jaxutils.ssim)
 # ssim_fn = jax.jit(functools.partial(jaxutils.compute_ssim, max_val=1.))
 
 params = diffable_solver.init(rng,batch)
+params_overview = parameter_overview.get_parameter_overview(params)
+print(params_overview)
 flat_tree, _ = jax.tree_flatten(params)
 nparams = np.sum([jnp.prod(np.array(i.shape)) for i in flat_tree])
-logger.addDict({'nparams':nparams},'nparams')
+logger.addDict({'nparams':nparams,'architecture':params_overview},'model_details')
 pred, aux = apply(params,batch)
 # @jax.jit
 def metrics(preds,gts,ignorelist=''):
@@ -134,19 +137,33 @@ def update(params_p,state_p,batch_p):
     params_p, state_p = solver.update(params_p, state_p,batch=batch_p)
     return params_p, state_p
 
+# DROP = (1.1e6, 1.25e6) # Learning rate drop
+def get_lr(niter):
+    # cond = lambda x: jax.lax.cond(x >= 1.1e6 and x < 1.25e6,lambda y:lr,lambda y:lr / 10.,x)
+    # return cond(niter)
+    # return jax.lax.cond(niter < 1.1e6,lambda x:lr,lambda x: #jax.lax.cond(x >= 1.1e6 and x < 1.25e6,lambda x:lr / jnp.sqrt(10.),lr/10.,x),niter)
+    return jnp.where(niter < 1.1e6,opts.lr,jnp.where(niter > 1.25e6,opts.lr / 10.,opts.lr / jnp.sqrt(10.)))
+    # if niter < 1.1e6:
+    #     return lr
+    # elif niter >= 1.1e6 and niter < 1.25e6:
+    #     return lr / jnp.sqrt(10.)
+    # else:
+    #     return lr / 10.
+
 data = logger.load_params()
-solver = OptaxSolver(fun=apply, opt=optax.adam(opts.lr),has_aux=True)
+solver = OptaxSolver(fun=apply, opt=optax.adam(get_lr),has_aux=True)
 state = solver.init_state(params)
 start_idx=0
 if(data is not None):
     # state = data['state']
-    batch = data['state']
+    if(type(state) == type(data['state'])):
+        state = data['state']
     params = data['params']
     start_idx = data['idx']
     print('Parameters loaded successfully')
 
 
-def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add_scalars=True,ignorelist='',t=None,method_name=''):
+def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=None,add_scalars=True,ignorelist='',t=None,method_name=''):
     _,aux = apply(params,batch)
 
     pred = tfu.camera_to_rgb_batch(aux['pred']/batch['alpha'],batch)
@@ -161,7 +178,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         mtrcs.update({'msssim':piq_metrics_pred['msssim'],'lpipsVGG':piq_metrics_pred['lpipsVGG'],'lpipsAlex':piq_metrics_pred['lpipsAlex']})
         mtrcs_noisy.update({'msssim':piq_metrics_noisy['msssim'],'lpipsVGG':piq_metrics_noisy['lpipsVGG'],'lpipsAlex':piq_metrics_noisy['lpipsAlex']})
 
-    mtrcs_str = ''.join([' %s:%.5f' % (k,v) for k,v in mtrcs.items()])
+    mtrcs_str = ''.join([' %s:%.5f, lr:%.7f' % (k,v,get_lr(1.1e6+state[0])) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
     if(display):
@@ -179,7 +196,10 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
         imgs.update(viz_imgs)
         annotation = {}
         if(erreval):
-            annotation = {'pred':r'$%s:PSNR, ~%.3f, SSIM, ~%.3f$'%(method_name,mtrcs['psnr'],mtrcs['ssim']),'noisy':r'$PSNR:~%.3f,SSIM:~%.3f$'%(mtrcs_noisy['psnr'],mtrcs_noisy['ssim'])}
+            annotation = {'pred':'%s<br>PSNR:%.3f<br>SSIM:%.3f'%(method_name,mtrcs['psnr'],mtrcs['ssim']),
+                        'noisy':'Noisy input<br>PSNR:%.3f<br>SSIM:%.3f'%(mtrcs_noisy['psnr'],mtrcs_noisy['ssim']),
+                        'ambient':'Ground truth',
+                        'flash':'Flash input'}
         labels['pred'] = r'$Prediction~(I),~PSNR:~%.3f,~MSE:~%.5f$'%(mtrcs['psnr'],mtrcs['mse'])
         labels['ambient'] = r'$Ground~Truth~(I_{ambient})$'
         labels['noisy'] = r'$Noisy~input~(I_{noisy}),~PSNR: %.3f,~MSE:~%.5f,\alpha:~%.2f$'%(mtrcs_noisy['psnr'], mtrcs_noisy['mse'],1./batch['alpha'])
@@ -204,7 +224,8 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
             imgs_sl['ambient'],labels_sl['ambient'] = imgs['ambient'],labels['ambient']
             imgs_sl['noisy'],labels_sl['noisy'] = imgs['noisy'],labels['noisy']
             imgs_sl['flash'],labels_sl['flash'] = imgs['flash'],labels['flash']
-            logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
+            logger.addIndividualImages(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation,ltype='filesystem')
+            # logger.addImage(imgs,labels,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
             # logger.addImage(imgs_sl,labels_sl,'image',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),annotation=annotation)
             # logger.addImage(imgs,labels,'image_inset',dim_type='BHWC',mode=mode,text=r'$\lambda=%s, \delta$=%s'%(strlambda,strdelta),addinset=True)
         else:
@@ -213,7 +234,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,erreval=None,add
             logger.createTeaser(imgs,labels,'Teaser',dim_type='BHWC',mode=mode)
 
     if(save_params):
-        logger.save_params(params,batch,i)
+        logger.save_params(params,state,i)
     mtrcs = {k:v for k,v in mtrcs.items()}
     if('div' in aux.keys()):
         div_sum = (aux['div'] ** 2).sum()
@@ -242,7 +263,7 @@ start_time = time.time()
 _,aux = apply(params,batch)
 metrics(np.array(aux['pred'][0]/batch['alpha'][0]),np.array(batch['ambient'][0]))
 visualize_model(params,batch)
-eval_visualize(params,batch,logger,'val',True,False,ignorelist='ssim')
+eval_visualize(params,batch,logger,'val',True,False,state,ignorelist='ssim')
 if(opts.mode == 'train'):
     #compile
     update(params,state,batch)
@@ -267,12 +288,12 @@ if(opts.mode == 'train'):
                 mse = np.mean([i['mse'] for i in mtrcs])
                 ssim = np.mean([i['ssim'] for i in mtrcs])
                 logger.addMetrics({'psnr':psnr,'mse':mse,'ssim':ssim},mode='val')
-                eval_visualize(params,batch,logger,'val',True,False,add_scalars=False)
+                eval_visualize(params,batch,logger,'val',True,False,state,add_scalars=False)
                 
 
             batch,_ = dataset.next_batch(False,i)
             params, state = update(params,state,batch)
-            eval_visualize(params,batch,logger,'train',train_display,save_params,ignorelist='ssim',t=t)
+            eval_visualize(params,batch,logger,'train',train_display,save_params,state=state,ignorelist='ssim',t=t)
             logger.takeStep()
             
 elif(opts.mode == 'test'):
@@ -316,7 +337,7 @@ elif(opts.mode == 'test'):
             else:
                 method_name = 'U-Net'
 
-            mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False,erreval=erreval,method_name=method_name)
+            mt = eval_visualize(params,batch,logger,'test', c % opts.display_freq_test == 0 ,False,state,erreval=erreval,method_name=method_name)
             logger.takeStep()
             for key,v in mt.items():
                 if(not(key in mtrcs.keys())):

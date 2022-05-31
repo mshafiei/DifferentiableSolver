@@ -3,7 +3,7 @@ source ./experiments/homography_params_static.sh
 source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
-mode=test
+mode=train
 fcount=128
 fcount_suffix=-128
 # name=msh-fft-solver-train-helmholze-phi5e1-psi5e1
@@ -25,12 +25,12 @@ fcount_suffix=-128
 # name=msh-fft-solver-train-helmholze-phi1e7-psi1e7
 # helmholz='--delta_phi_init -15.942385 --delta_psi_init -15.942385 --expname fft_helmholze-phi1e7-psi1e7'
 
-name=msh-fft-solver-$mode-helmholze-phi1-psi1e2-relu-$fcount
-helmholz="--delta_phi_init 1. --delta_psi_init 0.01 --expname fft_helmholze-phi1-psi1e2$fcount_suffix"
+# name=msh-fft-solver-$mode-helmholze-phi1-psi1e2-relu-$fcount
+# helmholz="--delta_phi_init 1. --delta_psi_init 0.01 --expname fft_helmholze-phi1-psi1e2$fcount_suffix"
 # name=msh-fft-solver-$mode-helmholze-phi1e2-psi1-relu-$fcount
 # helmholz="--delta_phi_init 0.01 --delta_psi_init 1. --expname fft_helmholze-phi1e2-psi1$fcount_suffix"
-# name=msh-fft-solver-$mode-helmholze-phi1-psi1-relu-$fcount
-# helmholz="--delta_phi_init 1. --delta_psi_init 1. --expname fft_helmholze-phi1-psi1$fcount_suffix"
+name=msh-fft-solver-$mode-helmholze-phi1-psi1-relu-$fcount
+helmholz="--delta_phi_init 1. --delta_psi_init 1. --expname fft_helmholze-phi1-psi1$fcount_suffix"
 # name=msh-fft-solver-$mode-helmholze-phi1-psi1-fixed-relu-$fcount
 # helmholz="--delta_phi_init 1. --delta_psi_init 1. --fixed_delta --expname fft_helmholze-phi1-psi1-fixed$fcount_suffix"
 
