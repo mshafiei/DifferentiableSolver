@@ -39,6 +39,7 @@ def parse_arguments(parser):
     parser.add_argument('--debug', default='none', type=str,help='What should we debug')
     parser.add_argument('--alpha_thickness', default=4, type=int,help='Thickness of layers in alpha map')
     parser.add_argument('--sse_weight', default=1., type=float,help='Weight of the Sum Squared Error loss')
+    parser.add_argument('--grad_weight', default=0., type=float,help='Weight of the Sum Squared Error loss')
     parser.add_argument('--curl_1', default=0., type=float,help='First order curl regularizer')
     parser.add_argument('--curl_2', default=0., type=float,help='Second order curl regularizer')
     parser.add_argument('--div_1', default=0., type=float,help='First order Div. regularizer')

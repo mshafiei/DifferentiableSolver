@@ -4,15 +4,15 @@ source ./experiments/logger_params_train_tb.sh
 source ./experiments/noise_params_deepfnf.sh
 source ./experiments/solver_params.sh
 mode=train
-fcount=128
-fcount_suffix=-128
+fcount=64
+fcount_suffix=
 
 exp_params="\
 --mode $mode \
 --model unet \
 --TLIST data/train.txt \
 --TESTPATH data/testset_nojitter \
---logdir logger/fft_solver_largeds-relu$fcount_suffix \
+--logdir logger/unet$fcount_suffix \
 --expname unet \
 --batch_size 1 \
 --out_features 3 \

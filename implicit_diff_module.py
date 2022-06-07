@@ -311,6 +311,10 @@ class fft_solver(nn.Module):
         if(self.opts.sse_weight > 0):
             aux['sse_loss'] = ((ambient - fft_solution) ** 2).sum()
             loss_val += self.opts.sse_weight * aux['sse_loss']
+        if(self.opts.grad_weight > 0):
+            aux['dx_loss'] = ((jaxutils.dx(ambient) - jaxutils.dx(fft_solution)) ** 2).sum()
+            aux['dy_loss'] = ((jaxutils.dy(ambient) - jaxutils.dy(fft_solution)) ** 2).sum()
+            loss_val += self.opts.grad_weight * (aux['dx_loss'] + aux['dy_loss'])
 
         if(self.opts.curl_1 > 0):
             aux['curl_1'] = ((jaxutils.dx(gy) + jaxutils.dy(gx)) ** 2).sum()
