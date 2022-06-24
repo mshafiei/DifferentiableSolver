@@ -178,7 +178,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=No
     ambient = tfu.camera_to_rgb_batch(batch['ambient'],batch)
     mtrcs = metrics(pred,ambient,ignorelist)
     mtrcs_noisy = metrics(noisy,ambient,ignorelist)
-    if(erreval != None):
+    if(erreval != None and False):
         piq_metrics_pred = erreval.eval(batch['ambient'],pred,dtype='jax')
         piq_metrics_noisy = erreval.eval(batch['ambient'],noisy,dtype='jax')
         mtrcs.update({'msssim':piq_metrics_pred['msssim'],'lpipsVGG':piq_metrics_pred['lpipsVGG'],'lpipsAlex':piq_metrics_pred['lpipsAlex']})
