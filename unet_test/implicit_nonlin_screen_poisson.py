@@ -187,7 +187,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=No
     mtrcs_str = ''.join([' %s:%.5f, lr:%.7f' % (k,v,get_lr(state[0])) for k,v in mtrcs.items()])
     if(t is not None):
         t.set_description(mtrcs_str)
-    if(display):
+    if(display and opts.no_visualize == False):
         viz_imgs = visualize_model(params,batch)
         labels_ret = diffable_solver.labels()
         flash = tfu.camera_to_rgb_batch(batch['flash'],batch)
@@ -224,7 +224,7 @@ def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=No
         else:
             strdelta = 'N/A'
         
-        if(mode == 'test'):
+        if(mode == 'test' and opts.no_visualize == False):
             imgs_sl,labels_sl = OrderedDict(), OrderedDict()
             imgs_sl['pred'],labels_sl['pred'] = imgs['pred'],labels['pred']
             imgs_sl['ambient'],labels_sl['ambient'] = imgs['ambient'],labels['ambient']
