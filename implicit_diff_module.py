@@ -382,7 +382,7 @@ class fft_solver(nn.Module):
         elif(self.fft_model == 'fft_highdim_nohelmholz'):
             g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
             lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
-            noisy_high = self.quad_model.low2highdim(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
+            noisy_high = self.quad_model.encode(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
             dx = g[...,::2]
             dy = g[...,1::2]
 
@@ -391,7 +391,7 @@ class fft_solver(nn.Module):
 
             func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
             i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
-            i_denoise = self.quad_model.encode(i_denoise_highdim)
+            i_denoise = self.quad_model.decode(i_denoise_highdim)
             aux['gx'] = g[...,::2]
             aux['gy'] = g[...,1::2]
         elif(self.fft_model == 'fft_filters'):
