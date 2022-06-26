@@ -1,4 +1,5 @@
-from cvgutils.nn.jaxUtils.unet_model import UNet, DummyConv
+# from cvgutils.nn.jaxUtils.unet_model import UNet, DummyConv
+from model import UNet, DummyConv
 import jax.numpy as jnp
 import jax
 import optax
