@@ -64,7 +64,7 @@ class UNet(nn.Module):
         self.up_out3 = Up(self.thickness*(2// self.unet_factor+1),   self.thickness,     self.bilinear,    self.test,self.group_norm,self.num_groups,self.activation)
         self.up_out4 = OutConv(self.thickness, self.n_classes,'SAME',self.outc_kernel_size)
 
-        if(self.main_model == 'fft_highdim'):
+        if('fft_highdim' in self.main_model):
             self.encoder_in0 = DoubleConv(9,self.thickness, self.thickness, self.test,     self.group_norm,self.num_groups,self.activation)
             self.encoder_in1 = DoubleConv(  self.thickness, self.thickness, self.thickness,self.test,      self.group_norm,self.num_groups,self.activation)
             self.encoder_in2 = DoubleConv(  self.thickness, self.thickness, self.thickness,self.test,      self.group_norm,self.num_groups,self.activation)
