@@ -13,8 +13,6 @@ class UNet(nn.Module):
     thickness : int
     activation: str
     main_model: str
-    kernel_channels:int
-    kernel_count: int
     kernel_size: int
     unet_factor: int
     high_dim: bool
@@ -52,6 +50,7 @@ class UNet(nn.Module):
         return self.decoder_out4(out4)
     
     def setup(self):
+        
         self.down_out0 = DoubleConv(self.n_channels,self.thickness, self.thickness,self.test,self.group_norm,self.num_groups,self.activation)
         self.down_out1 = Down(self.n_channels, self.thickness*2,self.test,self.group_norm,self.num_groups,self.activation)
         self.down_out2 = Down(self.thickness*2, self.thickness*4,self.test,self.group_norm,self.num_groups,self.activation)
@@ -76,12 +75,22 @@ class UNet(nn.Module):
             self.decoder_out2 = DoubleConv(self.thickness,self.thickness, self.thickness,self.test,self.group_norm,self.num_groups,self.activation)
             self.decoder_out3 = DoubleConv(self.thickness,self.thickness, self.thickness,self.test,self.group_norm,self.num_groups,self.activation)
             self.decoder_out4 = OutConv(   self.thickness, 3,'SAME',3)
+
+        if('filter' in self.main_model):
+            bottleneck_nchannel = self.thickness*16 // self.unet_factor
+            self.rescale = lambda x: jax.image.resize(x, [x.shape[0],1,1,self.thickness * 16 // self.unet_factor // 2],method='bilinear')
+            self.rescale_filters = lambda x: jax.image.resize(x, [x.shape[0],self.kernel_size,self.kernel_size,x.shape[-1]],method='bilinear')
+            self.filter_enc0 = Up(bottleneck_nchannel // 2, bottleneck_nchannel // 4, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
+            self.filter_enc1 = Up(bottleneck_nchannel // 4, bottleneck_nchannel // 8, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
+            self.filter_enc2 = Up(bottleneck_nchannel // 8, self.n_classes, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
+            self.filter_enc3 = Up(self.n_classes, self.n_classes, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
+            self.filter_enc4 = DoubleConv(self.n_classes, self.n_classes,self.n_classes, self.test,self.group_norm,self.num_groups,self.activation)
     
     def unet(self,inp):
         out, skips = self.down(inp)
         bottleneck = self.bottleneck(out)
         out = self.up(bottleneck, skips)
-        return out
+        return out, bottleneck
 
     @staticmethod
     def parse_arguments(parser):
@@ -91,8 +100,6 @@ class UNet(nn.Module):
         parser.add_argument('--group_norm', type=bool, default=True, help='Should we use group norm or batch norm?')
         parser.add_argument('--thickness', type=int, default=128, help='Thickness of each layer')
         parser.add_argument('--num_groups', type=int, default=32, help='Num groups')
-        parser.add_argument('--kernel_channels', type=int, default=3, help='Num groups')
-        parser.add_argument('--kernel_count', type=int, default=2, help='Num groups')
         parser.add_argument('--kernel_size', type=int, default=15, help='Num groups')
         parser.add_argument('--unet_factor', type=int, default=1, help='Num groups')
         parser.add_argument('--high_dim', action='store_true',help='Do not change the delta value')
@@ -101,7 +108,19 @@ class UNet(nn.Module):
         return parser
 
     def __call__(self, x):
-        return self.unet(x)
+        out, bottleneck = self.unet(x)
+        if('filter' in self.main_model):
+            bottleneck = self.rescale(bottleneck)
+            out_filters = self.filter_enc0(bottleneck,None)
+            out_filters = self.filter_enc1(out_filters,None)
+            out_filters = self.filter_enc2(out_filters,None)
+            out_filters = self.filter_enc3(out_filters,None)
+            out_filters = self.rescale_filters(out_filters)
+            out_filters = self.filter_enc4(out_filters)
+    
+            return out, out_filters
+        else:
+            return out
         
 
 class DummyConv(nn.Module):

@@ -395,7 +395,6 @@ class fft_solver(nn.Module):
             aux['gx'] = g[...,::2]
             aux['gy'] = g[...,1::2]
         elif(self.fft_model == 'fft_filters'):
-            assert self.opts.out_features == self.opts.kernel_count * self.opts.kernel_channels
             g, kernel = self.quad_model(inpt['net_input'])
         else:
             if(inim is None):

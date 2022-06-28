@@ -77,7 +77,7 @@ im = batch['net_input']
 if(opts.nn_model == 'unet'):
     nn_model = UNet(opts.in_features,opts.out_features,opts.bilinear,
     opts.mode == 'test',opts.group_norm,opts.num_groups,opts.thickness,
-    opts.activation,opts.model,opts.kernel_channels,opts.kernel_count,opts.kernel_size,opts.unet_factor,opts.high_dim,opts.outc_kernel_size)
+    opts.activation,opts.model,opts.kernel_size,opts.unet_factor,opts.high_dim,opts.outc_kernel_size)
 elif(opts.nn_model == 'linear'):
     nn_model = DummyConv(opts.in_features,opts.out_features)
 else:
