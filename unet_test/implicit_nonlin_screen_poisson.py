@@ -27,7 +27,7 @@ from collections import OrderedDict
 from clu import parameter_overview
 def parse_arguments(parser):
     parser.add_argument('--model', type=str, default='implicit_sanity_model',
-    choices=['implicit_sanity_model','fft_highdim_filters','fft_highdim_filters_nohelmholz','fft_highdim_filters_','fft_highdim_nohelmholz','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
+    choices=['implicit_sanity_model','fft_highdim_filters_normal','fft_highdim_filters','fft_highdim_filters_nohelmholz','fft_highdim_filters_','fft_highdim_nohelmholz','implicit_poisson_model','unet','fft','fft_alphamap','fft_image_grad','fft_helmholz','fft_filters','fft_highdim'],help='Which model to use')
     parser.add_argument('--nn_model', type=str, default='unet', choices=['linear','unet'],help='Which model to use')
     parser.add_argument('--lr', default=1e-4, type=float,help='Maximum rotation')
     parser.add_argument('--display_freq', default=50000, type=int,help='Display frequency by iteration count')
