@@ -85,6 +85,7 @@ class UNet(nn.Module):
             self.filter_enc2 = Up(bottleneck_nchannel // 8, self.n_classes, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
             self.filter_enc3 = Up(self.n_classes, self.n_classes, self.bilinear,self.test,self.group_norm,  self.num_groups,self.activation)
             self.filter_enc4 = DoubleConv(self.n_classes, self.n_classes,self.n_classes, self.test,self.group_norm,self.num_groups,self.activation)
+            self.filter_enc5 = DoubleConv(self.n_classes, self.n_classes,self.n_classes, self.test,self.group_norm,self.num_groups,'linear')
     
     def unet(self,inp):
         out, skips = self.down(inp)
@@ -117,6 +118,7 @@ class UNet(nn.Module):
             out_filters = self.filter_enc3(out_filters,None)
             out_filters = self.rescale_filters(out_filters)
             out_filters = self.filter_enc4(out_filters)
+            out_filters = self.filter_enc5(out_filters)
             if('normal' in self.main_model):
                 out_filters = out_filters / (jnp.abs(out_filters).sum((-2,-3),keepdims=True) + 1e-6)
 
