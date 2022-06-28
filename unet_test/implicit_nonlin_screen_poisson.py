@@ -89,7 +89,7 @@ elif(opts.model == 'implicit_poisson_model'):
     diffable_solver = diff_solver(opts=opts, quad_model=implicit_poisson_model(nn_model))
 elif(opts.model == 'unet'):
     diffable_solver = direct_model(opts=opts, quad_model=nn_model)
-elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_filters' or 'fft_highdim' in opts.model or opts.model == 'fft_highdim_nohelmholz'):
+elif(opts.model == 'fft' or opts.model == 'fft_image_grad' or opts.model == 'fft_helmholz' or opts.model == 'fft_highdim_filters' or 'fft_highdim' in opts.model or opts.model == 'fft_highdim_nohelmholz'):
     diffable_solver = fft_solver(opts=opts, quad_model=nn_model,alpha_type='scalar',alpha_map=None,fft_model=opts.model,delta_phi_init=opts.delta_phi_init,delta_psi_init=opts.delta_psi_init,fixed_delta=opts.fixed_delta)
 elif(opts.model == 'fft_alphamap'):
     alpha_model = UNet(opts.in_features,1,opts.bilinear,
