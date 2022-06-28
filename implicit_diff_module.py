@@ -304,7 +304,7 @@ class fft_solver(nn.Module):
             gy = g[...,3:]
         loss_val = 0.
         aux['pred'] = pred
-        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz' or self.fft_model == 'fft_highdim' or self.fft_model == 'fft_highdim_nohelmholz'):
+        if(self.fft_model == 'fft' or self.fft_model == 'fft_image_grad' or self.fft_model == 'fft_helmholz' or 'highdim' in self.fft_model or 'nohelmholz' in self.fft_model):
             aux['div'] = utils.dx(gx) + utils.dy(gy)
             aux['curl'] = utils.dy(gx) - utils.dx(gy)
         sg = lambda x: jax.lax.stop_gradient(x)
@@ -348,7 +348,22 @@ class fft_solver(nn.Module):
         elif(self.alpha_type == 'scalar'):
             alpha = self.alpha
         psp = partial(linalg.screen_poisson,alpha)
-        if(self.fft_model == 'fft_highdim'):
+        if('nohelmholz' in self.fft_model):
+            g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
+            lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
+            noisy_high = self.quad_model.encode(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
+            dx = g[...,::2]
+            dy = g[...,1::2]
+
+            dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
+            dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
+
+            func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
+            i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
+            i_denoise = self.quad_model.decode(i_denoise_highdim)
+            aux['gx'] = g[...,::2]
+            aux['gy'] = g[...,1::2]
+        elif(self.fft_model == 'fft_highdim'):
             g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
             lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
             noisy_high = self.quad_model.encode(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
@@ -379,21 +394,6 @@ class fft_solver(nn.Module):
             aux['phiy'] = phiy
             aux['psix'] = ax
             aux['psiy'] = ay
-        elif(self.fft_model == 'fft_highdim_nohelmholz'):
-            g = self.quad_model(inpt['net_input'])#b,h,w,3 <- b,h,w,12
-            lowdim_inpt = jnp.concatenate((inpt['noisy'],inpt['net_input'][...,:6]),axis=-1)
-            noisy_high = self.quad_model.encode(lowdim_inpt).transpose(0,3,1,2).reshape(-1,h,w)#b,h,w,64 <- b,h,w,9
-            dx = g[...,::2]
-            dy = g[...,1::2]
-
-            dx = dx.transpose(0,3,1,2).reshape(-1,h,w)
-            dy = dy.transpose(0,3,1,2).reshape(-1,h,w)
-
-            func = map(psp,noisy_high,dx,dy)#b,h,w,64 <- b,h,w,64, b,h,w,64, b,h,w,64
-            i_denoise_highdim = jnp.stack(list(func)).reshape(b,64,h,w).transpose(0,2,3,1)
-            i_denoise = self.quad_model.decode(i_denoise_highdim)
-            aux['gx'] = g[...,::2]
-            aux['gy'] = g[...,1::2]
         elif(self.fft_model == 'fft_filters'):
             g, kernel = self.quad_model(inpt['net_input'])
         else:
