@@ -160,14 +160,22 @@ if(data is not None):
     # state = data['state']
     if(type(state) == type(data['state'])):
         state = data['state']
+        print('State loaded successfully')
+    else:
+        print('Could not load state')
+
     params = data['params']
     start_idx = data['idx']
+    print('Parameters loaded successfully')
+else:
+    print('Could not load parameters')
+    
+
 # start_idx = 1000
 # print('Catching up with the current batch idx')
 # for i in tqdm.trange(start_idx):
 #     batch,_ = dataset.next_batch(False,i)
 
-#     print('Parameters loaded successfully')
 
 
 def eval_visualize(params,batch,logger,mode,display,save_params,state,erreval=None,add_scalars=True,ignorelist='',t=None,method_name=''):
