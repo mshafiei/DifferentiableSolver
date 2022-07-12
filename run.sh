@@ -15,6 +15,7 @@ unset __conda_setup
 export XLA_PYTHON_CLIENT_PREALLOCATE=False
 # <<< conda initialize <<<
 conda activate deepfnf
+
 cp /root/ssh_mount/id_rsa* /root/.ssh/
 chmod 400 ~/.ssh/id_rsa
 python3 -c """import imageio
